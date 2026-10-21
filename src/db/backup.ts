@@ -95,6 +95,7 @@ export async function importJSON(text: string, mode: 'merge' | 'replace'): Promi
     let addedSessions = 0;
     let addedEvents = 0;
     if (mode === 'replace') {
+      const hereRow = await db.settings.get('app');
       for (const t of tables) await t.clear();
       await db.events.bulkAdd(b.events.map(({ id: _id, ...e }) => e as AnyEvent));
       await db.sessions.bulkPut(b.sessions);
@@ -102,8 +103,13 @@ export async function importJSON(text: string, mode: 'merge' | 'replace'): Promi
       await db.boards.bulkPut(b.boards);
       await db.tasks.bulkPut(b.tasks);
       await db.stickers.bulkPut(b.stickers);
-      const license = (await db.settings.get('app'))?.value as { license?: string } | undefined;
-      await db.settings.bulkPut(b.settings.map((kv) => (kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: license?.license ?? null } } : kv)));
+      // Device-specific settings (supporter key, backup folder) stay with this device.
+      const here = hereRow?.value as { license?: string; autoBackup?: unknown } | undefined;
+      await db.settings.bulkPut(
+        b.settings.map((kv) =>
+          kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: here?.license ?? null, autoBackup: here?.autoBackup } } : kv,
+        ),
+      );
       return { sessions: b.sessions.length, events: b.events.length };
     }
     const seen = new Set<string>();

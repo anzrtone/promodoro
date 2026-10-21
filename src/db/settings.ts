@@ -1,11 +1,25 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { DEFAULT_BREAK_POLICY, DEFAULT_PRESETS, type BreakPolicy } from '@/engine/cycle';
 import type { ModeChoice, TimeSource } from '@/engine/types';
+import type { AmbientId } from '@/audio/synth';
 import { db } from './schema';
 
+export type { AmbientId };
+
 export type ThemeId = 'classic' | 'midnight' | 'graph' | 'sakura' | 'kraft';
-export type AmbientId = 'brown' | 'rain' | 'waves' | 'fire';
 export type AccessoryId = 'none' | 'beret' | 'headphones' | 'scarf' | 'party' | 'flower';
+
+export interface AutoBackupSettings {
+  enabled: boolean;
+  /** Desktop only: absolute folder path chosen by the user. Android uses a fixed public folder. */
+  dir: string | null;
+  intervalHours: number;
+  /** How many dated backup files to keep in the folder. */
+  keep: number;
+  lastAt: number | null;
+  lastPath: string | null;
+  lastError: string | null;
+}
 
 export interface AppSettings {
   presetId: string;
@@ -34,6 +48,8 @@ export interface AppSettings {
   lastBackupAt: number | null;
   backupReminderDays: number;
   backupSnoozedUntil: number;
+  /** Automatic backups to a folder the user owns (desktop: any folder; Android: Documents/Promodoro). */
+  autoBackup: AutoBackupSettings;
   license: string | null;
   installedAt: number;
   onboarded: boolean;
@@ -63,6 +79,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastBackupAt: null,
   backupReminderDays: 14,
   backupSnoozedUntil: 0,
+  autoBackup: { enabled: false, dir: null, intervalHours: 24, keep: 14, lastAt: null, lastPath: null, lastError: null },
   license: null,
   installedAt: 0,
   onboarded: false,
@@ -72,7 +89,13 @@ const KEY = 'app';
 
 export async function getSettings(): Promise<AppSettings> {
   const row = await db.settings.get(KEY);
-  return { ...DEFAULT_SETTINGS, ...((row?.value as Partial<AppSettings>) ?? {}) };
+  const v = (row?.value as Partial<AppSettings>) ?? {};
+  return {
+    ...DEFAULT_SETTINGS,
+    ...v,
+    breakPolicy: { ...DEFAULT_SETTINGS.breakPolicy, ...(v.breakPolicy ?? {}) },
+    autoBackup: { ...DEFAULT_SETTINGS.autoBackup, ...(v.autoBackup ?? {}) },
+  };
 }
 
 export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
