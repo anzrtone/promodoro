@@ -1,0 +1,143 @@
+/* Fonts are bundled (never fetched): the app works fully offline inside Tauri / Capacitor. */
+@import '@fontsource/fredoka/latin-500.css';
+@import '@fontsource/fredoka/latin-600.css';
+@import '@fontsource/nunito/latin-400.css';
+@import '@fontsource/nunito/latin-700.css';
+@import '@fontsource/nunito/latin-800.css';
+@import '@fontsource/caveat/latin-500.css';
+@import '@fontsource/caveat/latin-700.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------- @promodoro tokens (RGB channels) ---------- */
+:root {
+  --pm-creme: 253 251 247; /* #FDFBF7 */
+  --pm-paper: 245 239 224; /* #F5EFE0 */
+  --pm-tomato: 238 107 110; /* #EE6B6E */
+  --pm-leaf: 82 183 136; /* #52B788 */
+  --pm-halo: 255 232 147; /* #FFE893 */
+  --pm-margin: 244 162 162; /* #F4A2A2 */
+  --pm-rule: 229 223 209; /* #E5DFD1 */
+  --pm-ink: 45 49 46; /* #2D312E */
+  --pm-sheet: 255 254 251;
+  --pm-line: 28px;
+  --pm-margin-x: 44px;
+  color-scheme: light;
+}
+
+/* Midnight Ink — free dark notebook (dark mode is an accessibility feature, never paywalled). */
+:root[data-theme='midnight'] {
+  --pm-creme: 30 33 40;
+  --pm-paper: 41 45 54;
+  --pm-tomato: 240 120 122;
+  --pm-leaf: 104 196 152;
+  --pm-halo: 255 226 128;
+  --pm-margin: 168 88 96;
+  --pm-rule: 56 61 72;
+  --pm-ink: 236 230 216;
+  --pm-sheet: 36 40 48;
+  color-scheme: dark;
+}
+
+/* Supporter themes (cosmetic only). */
+:root[data-theme='graph'] {
+  --pm-creme: 248 250 252;
+  --pm-paper: 236 242 247;
+  --pm-margin: 150 190 225;
+  --pm-rule: 214 226 236;
+  --pm-sheet: 255 255 255;
+}
+:root[data-theme='sakura'] {
+  --pm-creme: 255 248 248;
+  --pm-paper: 252 233 236;
+  --pm-tomato: 232 102 128;
+  --pm-margin: 246 170 190;
+  --pm-rule: 242 220 224;
+  --pm-halo: 255 226 160;
+  --pm-sheet: 255 252 252;
+}
+:root[data-theme='kraft'] {
+  --pm-creme: 236 222 199;
+  --pm-paper: 224 205 172;
+  --pm-tomato: 214 92 80;
+  --pm-leaf: 74 150 110;
+  --pm-margin: 196 120 100;
+  --pm-rule: 210 190 158;
+  --pm-ink: 58 46 36;
+  --pm-sheet: 244 234 216;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-creme font-sans text-ink antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+::selection {
+  background: rgb(var(--pm-halo) / 0.7);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--pm-rule)) transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply pill bg-tomato px-5 py-3 text-[15px] text-white shadow-pill hover:brightness-105;
+  }
+  .btn-rest {
+    @apply pill bg-leaf px-5 py-3 text-[15px] text-white shadow-pill hover:brightness-105;
+  }
+  .btn-soft {
+    @apply pill border border-rule bg-sheet px-4 py-2.5 text-sm text-ink hover:bg-paper;
+  }
+  .btn-ghost {
+    @apply pill px-3 py-2 text-sm text-ink/70 hover:bg-paper hover:text-ink;
+  }
+  .chip {
+    @apply pill border border-rule bg-sheet px-3 py-1.5 text-[13px] text-ink/80 hover:bg-paper;
+  }
+  .chip-on {
+    @apply border-halo bg-halo text-ink;
+  }
+  .field {
+    @apply w-full rounded-note border border-rule bg-sheet px-3 py-2 text-[15px] text-ink outline-none placeholder:text-ink/35 focus:border-ink/40;
+  }
+  .label {
+    @apply mb-1 block text-xs font-bold uppercase tracking-wide text-ink/55;
+  }
+  .card {
+    @apply rounded-card border border-rule bg-sheet;
+  }
+  .hand {
+    @apply font-hand text-[1.3em] leading-none;
+  }
+}
