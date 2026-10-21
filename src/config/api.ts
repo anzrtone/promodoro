@@ -11,6 +11,6 @@
 const DEFAULT_API = 'https://promodoro-api.promodoro.workers.dev';
 
 const env = ((import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.VITE_SURVEY_ENDPOINT as string | undefined))?.trim();
-const official = import.meta.env.VITE_OFFICIAL_BUILD === 'true';
+const official = import.meta.env.VITE_OFFICIAL_BUILD === 'true' && import.meta.env.MODE !== 'test';
 const raw = env !== undefined && env !== '' ? env : official ? DEFAULT_API : '';
 export const API_BASE: string | null = raw === '' || raw.toLowerCase() === 'off' ? null : raw.replace(/\/+$/, '');
