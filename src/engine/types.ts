@@ -47,6 +47,8 @@ export type EventMap = {
   'timer.nudge': { ms: number };
   /** Turn the clock forward: record time worked while the timer was not running. */
   'timer.backfill': { ms: number };
+  /** Scrubbing the focus ring: move elapsed time forward (+) or back (−). Signed, never below zero in total. */
+  'timer.adjust': { ms: number };
   'timer.overtime': { on: boolean; softTargetMs?: number };
   'timer.alarm': { late?: boolean };
   'timer.done': { reason: Exclude<EndReason, 'discarded'> };
@@ -101,6 +103,8 @@ export interface TimerState {
   plannedMs: number;
   nudgedMs: number;
   backfillMs: number;
+  /** Signed scrub offset from dragging the focus ring. */
+  adjustMs: number;
   backdatedMs: number;
   /** Wall time the start button was pressed. */
   createdAt: number;
@@ -175,7 +179,8 @@ export interface Session {
   importKey?: string;
   importFrom?: string;
   deleted?: boolean;
-  createdAt: number;
+  createdAt: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 export interface Preset {
@@ -188,7 +193,8 @@ export interface Preset {
   builtin?: boolean;
   /** The "use once" slot from the Focus screen: shown only while it's the active preset. */
   once?: boolean;
-  order: number;
+  order: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 export interface Board {
@@ -199,7 +205,8 @@ export interface Board {
   archived?: boolean;
   /** Folder (or subfolder) this subject sits in; none = loose. */
   folderId?: string;
-  order: number;
+  order: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 /** Groups subjects. Two levels at most: a folder, and subfolders inside it. */
@@ -210,7 +217,8 @@ export interface Folder {
   /** Parent folder; none = top level. A subfolder never has subfolders of its own. */
   parentId?: string;
   archived?: boolean;
-  order: number;
+  order: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 export interface Task {
@@ -221,7 +229,8 @@ export interface Task {
   boardId?: string;
   folderId?: string;
   createdAt: number;
-  doneAt?: number;
+  doneAt?: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 export interface Note {
@@ -238,7 +247,8 @@ export interface Note {
 export interface Sticker {
   id: string;
   earnedAt: number;
-  seen?: boolean;
+  seen?: boolean;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  updatedAt?: number;
 }
 
 export interface DailySummary {

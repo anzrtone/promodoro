@@ -35,12 +35,68 @@ export interface SurveyAnswers {
   answeredAt: number;
 }
 
+export type SyncMethod = 'off' | 'relay' | 'folder' | 'file';
+
+/** Device sync. Device-specific: never exported in backups or carried between devices. */
+export interface SyncSettings {
+  method: SyncMethod;
+  /** Pairing code for the encrypted relay (also the encryption key; keep it private). */
+  code: string | null;
+  /** Names this device's file in a shared sync folder. */
+  deviceId: string | null;
+  /** Desktop: the folder shared between devices. Android uses Documents/Promodoro. */
+  dir: string | null;
+  /** Sync in the background on launch, every so often, and when the app is put away. */
+  auto: boolean;
+  lastAt: number | null;
+  lastError: string | null;
+  lastSummary: string | null;
+  /** Fingerprints that let a sync skip re-uploading data nobody has changed. */
+  lastPushHash: string | null;
+  lastBlobHash: string | null;
+}
+
+export const DEFAULT_SYNC: SyncSettings = {
+  method: 'off',
+  code: null,
+  deviceId: null,
+  dir: null,
+  auto: true,
+  lastAt: null,
+  lastError: null,
+  lastSummary: null,
+  lastPushHash: null,
+  lastBlobHash: null,
+};
+
+/** Preferences that follow you between synced devices (volume, alarms, folders and keys stay per device). */
+export const SYNCED_PREFS = [
+  'theme',
+  'accessory',
+  'defaultMode',
+  'breakMode',
+  'autoAdvance',
+  'focusModeAuto',
+  'breakPolicy',
+  'soundId',
+  'breakSoundId',
+  'dailyGoalMs',
+  'shareWidgets',
+  'chartSources',
+  'presetId',
+  'pomoTalks',
+  'profile',
+  'backupReminderDays',
+] as const satisfies ReadonlyArray<keyof AppSettings>;
+
 export interface AppSettings {
   presetId: string;
   /** Gentle Flow (overtime) by default: the timer never interrupts your flow. */
   defaultMode: ModeChoice;
   breakMode: 'countdown' | 'overtime';
   autoAdvance: boolean;
+  /** Open focus mode (the full-screen timer) whenever a focus session starts. */
+  focusModeAuto: boolean;
   breakPolicy: BreakPolicy;
   soundId: string;
   breakSoundId: string;
@@ -82,6 +138,15 @@ export interface AppSettings {
   installId: string | null;
   /** When the current answers reached the endpoint. Null means there's something to send (or withdraw). */
   surveySentAt: number | null;
+  /** Anonymous daily "count" ping (random id + platform + version). On by default, with an off switch in Settings; see features/ping.ts. */
+  pingEnabled: boolean;
+  pingId: string | null;
+  pingSentOn: string | null;
+  /** When any synced preference last changed here; the newer side wins on sync. */
+  prefsUpdatedAt: number;
+  sync: SyncSettings;
+  /** The Sync tab's guided tour has been shown on this device (it replays from the Re-tour button). */
+  syncTourSeen: boolean;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -89,6 +154,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   defaultMode: 'overtime',
   breakMode: 'countdown',
   autoAdvance: false,
+  focusModeAuto: true,
   breakPolicy: DEFAULT_BREAK_POLICY,
   soundId: 'kitchen',
   breakSoundId: 'chime',
@@ -120,6 +186,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   shareSurvey: false,
   installId: null,
   surveySentAt: null,
+  pingEnabled: true,
+  pingId: null,
+  pingSentOn: null,
+  prefsUpdatedAt: 0,
+  sync: DEFAULT_SYNC,
+  syncTourSeen: false,
 };
 
 const KEY = 'app';
@@ -133,12 +205,15 @@ export async function getSettings(): Promise<AppSettings> {
     breakPolicy: { ...DEFAULT_SETTINGS.breakPolicy, ...(v.breakPolicy ?? {}) },
     autoBackup: { ...DEFAULT_SETTINGS.autoBackup, ...(v.autoBackup ?? {}) },
     profile: { ...DEFAULT_SETTINGS.profile, ...(v.profile ?? {}) },
+    sync: { ...DEFAULT_SYNC, ...(v.sync ?? {}) },
   };
 }
 
 export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSettings> {
   return db.transaction('rw', db.settings, async () => {
-    const next = { ...(await getSettings()), ...patch };
+    const cur = await getSettings();
+    const next = { ...cur, ...patch };
+    if (patch.prefsUpdatedAt === undefined && SYNCED_PREFS.some((k) => k in patch && JSON.stringify(patch[k]) !== JSON.stringify(cur[k]))) next.prefsUpdatedAt = Date.now();
     await db.settings.put({ key: KEY, value: next });
     return next;
   });
@@ -147,12 +222,12 @@ export async function updateSettings(patch: Partial<AppSettings>): Promise<AppSe
 /** Seed first-run data (presets, a few notebook subjects, install time). Idempotent. */
 export async function ensureSeeded(): Promise<void> {
   await db.transaction('rw', db.presets, db.boards, db.settings, async () => {
-    if ((await db.presets.count()) === 0) await db.presets.bulkPut(DEFAULT_PRESETS);
+    if ((await db.presets.count()) === 0) await db.presets.bulkPut(DEFAULT_PRESETS.map((p) => ({ ...p, updatedAt: 0 })));
     if ((await db.boards.count()) === 0)
       await db.boards.bulkPut([
-        { id: 'b-study', name: 'Study', color: '#EE6B6E', order: 0 },
-        { id: 'b-code', name: 'Coding', color: '#52B788', order: 1 },
-        { id: 'b-write', name: 'Writing', color: '#E9B949', order: 2 },
+        { id: 'b-study', name: 'Study', color: '#EE6B6E', order: 0, updatedAt: 0 },
+        { id: 'b-code', name: 'Coding', color: '#52B788', order: 1, updatedAt: 0 },
+        { id: 'b-write', name: 'Writing', color: '#E9B949', order: 2, updatedAt: 0 },
       ]);
     const s = await getSettings();
     if (!s.installedAt) await db.settings.put({ key: KEY, value: { ...s, installedAt: Date.now() } });

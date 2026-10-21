@@ -6,7 +6,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Table2, BarChart3, ChevronRight, Share2 } from 'lucide-react';
-import { db } from '@/db/schema';
+import { useViewDb } from '@/features/demo';
 import { updateSettings, useSettings } from '@/db/settings';
 import {
   ALL_SOURCES,
@@ -75,13 +75,15 @@ export function StatsScreen() {
   const buckets = bucketDays(dayList, range.unit);
   const bucketIndex = new Map(buckets.flatMap((b, i) => b.days.map((d) => [d, i] as const)));
 
-  const both = useLiveQuery(() => db.daily.where('day').between(prevStart, end, true, true).toArray(), [prevStart, end], []);
-  const all = useLiveQuery(() => db.daily.toArray(), [], []);
-  const sessionsRaw = useLiveQuery(() => db.sessions.where('end').above(dayStart(start)).filter((s) => !s.deleted).toArray(), [start], []);
-  const boards = useLiveQuery(() => db.boards.toArray(), [], []);
-  const folders = useLiveQuery(() => db.folders.toArray(), [], []);
-  const tasks = useLiveQuery(() => db.tasks.toArray(), [], []);
-  const stickers = useLiveQuery(() => db.stickers.where('earnedAt').above(dayStart(start)).toArray(), [start], []);
+  // Pomo's tour shows sample data here; otherwise this is the real notebook.
+  const db = useViewDb();
+  const both = useLiveQuery(() => db.daily.where('day').between(prevStart, end, true, true).toArray(), [db, prevStart, end], []);
+  const all = useLiveQuery(() => db.daily.toArray(), [db], []);
+  const sessionsRaw = useLiveQuery(() => db.sessions.where('end').above(dayStart(start)).filter((s) => !s.deleted).toArray(), [db, start], []);
+  const boards = useLiveQuery(() => db.boards.toArray(), [db], []);
+  const folders = useLiveQuery(() => db.folders.toArray(), [db], []);
+  const tasks = useLiveQuery(() => db.tasks.toArray(), [db], []);
+  const stickers = useLiveQuery(() => db.stickers.where('earnedAt').above(dayStart(start)).toArray(), [db, start], []);
 
   const summaries = both.filter((s) => s.day >= start);
   const prevSummaries = both.filter((s) => s.day < start);
@@ -128,7 +130,7 @@ export function StatsScreen() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
       {/* filters: one row above the charts */}
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2" data-tour="stats-filters">
         <div className="inline-flex rounded-full border border-rule bg-sheet p-1">
           {RANGES.map((r) => (
             <button key={r.days} className={cx('pill px-3 py-1.5 text-[13px]', range.days === r.days ? 'bg-halo' : 'text-ink/60')} onClick={() => setRange(r)}>
@@ -143,12 +145,12 @@ export function StatsScreen() {
             {SHORT[s]}
           </button>
         ))}
-        <button className="btn-primary ml-auto !py-1.5 text-[13px]" onClick={() => setSharing(true)}>
+        <button className="btn-primary ml-auto !py-1.5 text-[13px]" onClick={() => setSharing(true)} data-tour="stats-share">
           <Share2 size={15} /> Share
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-tour="stats-tiles">
         <Tile big label={`focus, last ${range.days === 365 ? 'year' : `${days} days`}`} value={formatDuration(stats.totalMs)} sub={delta(stats.totalMs, prev.totalMs, formatDuration, vs)} />
         <Tile label="per active day" value={formatDuration(stats.avgPerActiveDay)} sub={delta(stats.avgPerActiveDay, prev.avgPerActiveDay, formatDuration, vs)} />
         <Tile
@@ -162,6 +164,7 @@ export function StatsScreen() {
       </div>
 
       <Section
+        tour="stats-bars"
         title={range.title}
         aside={
           <button className="btn-ghost !p-2" onClick={() => setTable(!table)} aria-label={table ? 'Show chart' : 'Show table'} title={table ? 'Chart view' : 'Table view'}>
@@ -173,30 +176,30 @@ export function StatsScreen() {
         <p className="mt-2 text-xs text-ink/50">Imported lumps and hand-added time are labelled, never judged. Toggle them above to see averages your way.</p>
       </Section>
 
-      <Section title="Focus periods" aside={days > 31 ? <span className="text-xs text-ink/45">last 31 days</span> : undefined}>
+      <Section tour="stats-periods" title="Focus periods" aside={days > 31 ? <span className="text-xs text-ink/45">last 31 days</span> : undefined}>
         <FocusPeriods days={periodDays} periods={periods} colorOf={colorOf} nameOf={nameOf} />
       </Section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Section title="Where the time went">
+        <Section tour="stats-donut" title="Where the time went">
           <SubjectDonut slices={slices} />
         </Section>
-        <Section title="Daily goal" aside={<GoalPicker goalMs={settings.dailyGoalMs} onChange={(ms) => void updateSettings({ dailyGoalMs: ms })} />}>
+        <Section tour="stats-goal" title="Daily goal" aside={<GoalPicker goalMs={settings.dailyGoalMs} onChange={(ms) => void updateSettings({ dailyGoalMs: ms })} />}>
           <GoalCalendar days={goal} goalMs={settings.dailyGoalMs} />
         </Section>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <Section title="When you focus">
+        <Section tour="stats-when" title="When you focus">
           <HourBars hours={hours} />
           <WeekHeatmap grid={weekHourGrid(sessions, sources)} />
         </Section>
-        <Section title="How sessions go">
+        <Section tour="stats-shape" title="How sessions go">
           <ShapePanel shape={shape} />
         </Section>
       </div>
 
-      <Section title="By subject">
+      <Section tour="stats-tree" title="By subject">
         {tree.length === 0 ? <p className="font-hand text-[20px] text-ink/45">nothing yet, and that's okay</p> : <SubjectTree nodes={tree} max={tree[0].ms} />}
       </Section>
       {sharing && <ShareStatsSheet snapshot={snapshot} onClose={() => setSharing(false)} />}

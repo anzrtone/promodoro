@@ -222,4 +222,41 @@ export const android: Platform = {
     for (const name of old) await Filesystem.deleteFile({ path: `${BACKUP_DIR}/${name}`, directory: Directory.Documents });
     return { path: `Documents/${final}`, pruned: old.length };
   },
+
+  /** Same public Documents/Promodoro folder as backups, so Drive / Syncthing / FolderSync can carry it to the other device. */
+  async readSyncFiles() {
+    const perm = await Filesystem.checkPermissions();
+    if (perm.publicStorage !== 'granted') await Filesystem.requestPermissions();
+    let names: string[];
+    try {
+      names = (await Filesystem.readdir({ path: BACKUP_DIR, directory: Directory.Documents })).files.map((f) => f.name);
+    } catch {
+      return []; // folder not created yet
+    }
+    const out: Array<{ name: string; text: string }> = [];
+    for (const name of names.filter((n) => /^promodoro-sync-[\w-]+\.json$/.test(n))) {
+      try {
+        const r = await Filesystem.readFile({ path: `${BACKUP_DIR}/${name}`, directory: Directory.Documents, encoding: Encoding.UTF8 });
+        out.push({ name, text: typeof r.data === 'string' ? r.data : await r.data.text() });
+      } catch {
+        /* a file the cloud app hasn't finished downloading: next time */
+      }
+    }
+    return out;
+  },
+
+  async writeSyncFile(_dir, fileName, contents) {
+    const perm = await Filesystem.checkPermissions();
+    if (perm.publicStorage !== 'granted') await Filesystem.requestPermissions();
+    const tmp = `${BACKUP_DIR}/.${fileName}.tmp`;
+    const final = `${BACKUP_DIR}/${fileName}`;
+    await Filesystem.writeFile({ path: tmp, data: contents, directory: Directory.Documents, encoding: Encoding.UTF8, recursive: true });
+    try {
+      await Filesystem.deleteFile({ path: final, directory: Directory.Documents });
+    } catch {
+      /* first write */
+    }
+    await Filesystem.rename({ from: tmp, to: final, directory: Directory.Documents, toDirectory: Directory.Documents });
+    return `Documents/${final}`;
+  },
 };

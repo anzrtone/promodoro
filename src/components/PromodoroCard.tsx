@@ -3,7 +3,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChevronDown, Coffee, FastForward, Flame, History, MoreHorizontal, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
+import { Check, ChevronDown, Coffee, FastForward, Flame, History, Maximize2, MoreHorizontal, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { updateSettings, useSettings } from '@/db/settings';
 import { phaseLabel, isBreak } from '@/engine/cycle';
@@ -15,6 +15,7 @@ import type { ModeChoice, Preset, TimerSnapshot, TimerState } from '@/engine/typ
 import { usePromodoroEngine, engine } from '@/hooks/usePromodoroEngine';
 import { award } from '@/features/stickers';
 import { greeting } from '@/features/onboarding';
+import { setFocusMode } from '@/features/focusMode';
 import { SOUNDS, soundName } from '@/audio/catalog';
 import { unlockAudio } from '@/audio/engine';
 import { Pomo, POMO_LINES, type PomoMood } from './Pomo';
@@ -190,6 +191,9 @@ function RunningPanel({ t, snap, compact, ringing }: { t: TimerState; snap: Time
           </button>
           <button className={cx('chip', t.overtime && 'chip-on')} onClick={onOvertime} title={t.mode === 'countdown' ? "Don't stop at zero" : 'Set a soft goal; time past it is overtime'}>
             <Flame size={14} /> {t.mode === 'countdown' ? (t.overtime ? 'Overtime on' : 'Overtime') : t.overtime ? `Goal ${formatDuration(snap.targetMs)}` : 'Overtime goal'}
+          </button>
+          <button className="chip" onClick={() => setFocusMode(true)} title="Focus mode (F)">
+            <Maximize2 size={14} /> Focus mode
           </button>
           <button className="chip" onClick={() => setMore(true)} aria-label="More">
             <MoreHorizontal size={16} />
@@ -609,6 +613,9 @@ function PresetChip({ preset: p, on, onPick, onEdit }: { preset: Preset; on: boo
 /** "Forgot to start?" — a quiet link that unfolds into one-tap backdates. */
 function ForgotLink({ onPick }: { onPick: (min: number) => void }) {
   const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState<string | null>(null);
+  // While the custom box is open, the first click on another pill only closes it.
+  const pick = (m: number) => (custom !== null ? setCustom(null) : onPick(m));
   const last = useLiveQuery(async () => lastSessionEnd(await db.sessions.where('end').above(Date.now() - 6 * 3600_000).toArray()), []);
   const sinceMin = useMemo(() => (last ? Math.round((Date.now() - last.end) / MINUTE) : 0), [last]);
   return (
@@ -619,12 +626,40 @@ function ForgotLink({ onPick }: { onPick: (min: number) => void }) {
       {open && (
         <div className="flex animate-pop flex-wrap justify-center gap-2">
           {[10, 20, 30].map((m) => (
-            <button key={m} className="chip" onClick={() => onPick(m)}>
+            <button key={m} className="chip" onClick={() => pick(m)}>
               {m} min ago
             </button>
           ))}
+          {custom === null ? (
+            <button className="chip" onClick={() => setCustom('')}>
+              custom…
+            </button>
+          ) : (
+            <form
+              className="chip !gap-1.5 !py-0.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const m = parseInt(custom, 10);
+                if (m > 0) onPick(Math.min(m, 600));
+              }}
+            >
+              <input
+                autoFocus
+                inputMode="numeric"
+                className="w-10 bg-transparent text-center font-bold outline-none tabular"
+                value={custom}
+                placeholder="45"
+                aria-label="Minutes ago"
+                onChange={(e) => setCustom(e.target.value.replace(/\D/g, '').slice(0, 3))}
+              />
+              min ago
+              <button type="submit" className="font-bold text-tomato disabled:opacity-40" disabled={!(parseInt(custom, 10) > 0)}>
+                Go
+              </button>
+            </form>
+          )}
           {last && sinceMin >= 3 && sinceMin <= 180 && (
-            <button className="chip" onClick={() => onPick(sinceMin)} title="Backdate to the end of your last session">
+            <button className="chip" onClick={() => pick(sinceMin)} title="Backdate to the end of your last session">
               at {formatTimeOfDay(last.end)}, when my last session ended
             </button>
           )}

@@ -8,7 +8,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ChevronLeft, ChevronRight, Minus, Plus, Share2 } from 'lucide-react';
-import { db } from '@/db/schema';
+import { useViewDb } from '@/features/demo';
 import { useSettings } from '@/db/settings';
 import { focusFor, SOURCE_LABEL } from '@/engine/stats';
 import { addDays, dayStart, DAY, formatDayLabel, formatDuration, formatHours, formatTimeOfDay, HOUR, MINUTE, today, weekStart } from '@/engine/time';
@@ -36,7 +36,7 @@ export function TimelineScreen() {
   const step = view === 'day' ? 1 : view === 'week' ? 7 : 30;
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3" data-tour="timeline-nav">
         <div className="flex items-center gap-1">
           <button className="btn-ghost !p-2" onClick={() => setDay(addDays(day, -step))} aria-label="Earlier">
             <ChevronLeft size={20} />
@@ -85,7 +85,7 @@ export function TimelineScreen() {
         />
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" data-tour="timeline-actions">
         <button className="btn-soft" onClick={() => setManual({ start: dayStart(day) + 9 * HOUR, end: dayStart(day) + 9 * HOUR + 25 * MINUTE })}>
           <Plus size={16} /> Add a past session
         </button>
@@ -119,16 +119,17 @@ interface Block {
 }
 
 function useDayData(day: string) {
+  const db = useViewDb();
   const from = dayStart(day);
   const to = from + DAY;
   const sessions = useLiveQuery(
     () => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk).toArray(),
-    [from, to],
+    [db, from, to],
     [],
   );
-  const bulk = useLiveQuery(() => db.sessions.where('day').equals(day).filter((s) => !!s.bulk && !s.deleted).toArray(), [day], []);
-  const events = useLiveQuery(() => db.events.where('ts').between(from, to).toArray(), [from, to], []);
-  const boards = useLiveQuery(() => db.boards.toArray(), [], []);
+  const bulk = useLiveQuery(() => db.sessions.where('day').equals(day).filter((s) => !!s.bulk && !s.deleted).toArray(), [db, day], []);
+  const events = useLiveQuery(() => db.events.where('ts').between(from, to).toArray(), [db, from, to], []);
+  const boards = useLiveQuery(() => db.boards.toArray(), [db], []);
   return { from, to, sessions, bulk, events, boards };
 }
 
@@ -140,6 +141,7 @@ function DayView({ day }: { day: string }) {
   const [detail, setDetail] = useState<Session | null>(null);
   const [claim, setClaim] = useState<ClaimDraft | null>(null);
   const [drag, setDrag] = useState<{ a: number; b: number; gap?: Gap } | null>(null);
+  const [joggersOpen, setJoggersOpen] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
   const live: Block[] = isToday
@@ -199,8 +201,8 @@ function DayView({ day }: { day: string }) {
 
   return (
     <div className="space-y-4">
-      <div className="card relative overflow-hidden">
-        <div className="flex items-center justify-between border-b border-rule px-4 py-2">
+      <div className="card relative overflow-hidden" data-tour="timeline-day">
+        <div className="flex items-center justify-between border-b border-rule px-4 py-2" data-tour="timeline-claim">
           <span className="font-hand text-[19px] text-ink/60">drag across a dashed gap to claim it</span>
           <div className="flex items-center gap-1">
             <button className="btn-ghost !p-1.5" onClick={() => setZoom((z) => Math.max(40, z / 1.4))} aria-label="Zoom out">
@@ -282,12 +284,32 @@ function DayView({ day }: { day: string }) {
 
       {gaps.some((g) => g.anchors.length) && (
         <div className="sticky-note p-3">
-          <p className="mb-1 font-display text-sm font-semibold">Memory joggers</p>
-          {gaps.flatMap((g) => g.anchors).map((a) => (
-            <p key={a.ts} className="font-hand text-[18px] leading-6 text-ink/70">
-              · {a.text}
-            </p>
-          ))}
+          <button
+            type="button"
+            aria-expanded={joggersOpen}
+            onClick={() => setJoggersOpen((o) => !o)}
+            className="flex w-full items-center justify-between text-left font-display text-sm font-semibold"
+          >
+            <span>
+              Memory joggers{' '}
+              <span className="font-normal text-ink/50">({gaps.flatMap((g) => g.anchors).length})</span>
+            </span>
+            <span aria-hidden className={cx('text-ink/50 transition-transform duration-300', joggersOpen && 'rotate-180')}>▼</span>
+          </button>
+          <div
+            className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none', joggersOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
+            aria-hidden={!joggersOpen}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div className="mt-1 max-h-64 overflow-y-auto">
+                {gaps.flatMap((g) => g.anchors).map((a) => (
+                  <p key={a.ts} className="font-hand text-[18px] leading-6 text-ink/70">
+                    · {a.text}
+                  </p>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -403,7 +425,8 @@ function WeekView({ start, onPick }: { start: string; onPick: (d: string) => voi
   const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
   const from = dayStart(start);
   const to = dayStart(addDays(start, 7));
-  const sessions = useLiveQuery(() => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk && s.phase !== 'side').toArray(), [from, to], []);
+  const db = useViewDb();
+  const sessions = useLiveQuery(() => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk && s.phase !== 'side').toArray(), [db, from, to], []);
   const settings = useSettings();
   return (
     <div className="card overflow-x-auto p-3">
@@ -446,7 +469,8 @@ function MonthView({ day, onPick }: { day: string; onPick: (d: string) => void }
   const first = day.slice(0, 8) + '01';
   const gridStart = weekStart(first);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
-  const summaries = useLiveQuery(() => db.daily.where('day').between(cells[0], cells[41], true, true).toArray(), [cells[0]], []);
+  const db = useViewDb();
+  const summaries = useLiveQuery(() => db.daily.where('day').between(cells[0], cells[41], true, true).toArray(), [db, cells[0]], []);
   const byDay = new Map(summaries.map((s) => [s.day, focusFor(s, settings.chartSources)]));
   const max = Math.max(HOUR, ...byDay.values());
   const month = first.slice(0, 7);

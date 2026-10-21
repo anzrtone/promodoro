@@ -100,12 +100,12 @@ export function SubjectsScreen() {
   return (
     <div className="mx-auto w-full max-w-5xl">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
+        <div data-tour="subjects-intro">
           <h2 className="font-display text-2xl font-semibold">Subjects</h2>
           <p className="text-sm text-ink/60">Group subjects into folders, and keep tasks and notes right where they belong.</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-soft" onClick={() => void newFolder()}>
+          <button className="btn-soft" onClick={() => void newFolder()} data-tour="new-folder">
             <FolderPlus size={16} /> New folder
           </button>
           <button className="btn-primary !py-2.5 !text-sm" onClick={() => void newSubject()}>
@@ -373,6 +373,7 @@ function FolderCard({ id, ctx }: { id: string; ctx: TreeCtx }) {
       ref={item.ref}
       style={item.style}
       className={cx('card relative', boxCls(ctx, `c:${id}`, 'subject'), item.isDragging && 'opacity-30', ctx.landed === id && 'animate-land')}
+      data-tour={`folder:${id}`}
     >
       <FolderHeader folder={folder} ctx={ctx} open={open} onToggle={() => setOpen(!open)} total={total} count={subjects.length + subs.length} handle={item.handle} top />
       {open ? (
@@ -477,7 +478,7 @@ function FolderHeader({ folder, ctx, open, onToggle, total, count, top, handle }
             <FolderPlus size={15} />
           </button>
         )}
-        <button className="btn-ghost !p-1.5" onClick={() => void ctx.newSubject(folder.id)} title="New subject here" aria-label="New subject here">
+        <button className="btn-ghost !p-1.5" onClick={() => void ctx.newSubject(folder.id)} title="New subject here" aria-label="New subject here" data-tour={`folder-add:${folder.id}`}>
           <Plus size={15} />
         </button>
       </div>
@@ -504,6 +505,7 @@ function SubjectRow({ id, ctx }: { id: string; ctx: TreeCtx }) {
         ctx.landed === id && 'animate-land',
       )}
       onClick={() => ctx.select(what)}
+      data-tour={`subject:${id}`}
     >
       <GripVertical size={14} className="shrink-0 text-ink/25 transition-colors group-hover:text-ink/50" />
       <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: board.color }} />
@@ -906,7 +908,7 @@ function DraftInput({
 
 function ColorDot({ color, onChange }: { color: string; onChange: (c: string) => void }) {
   return (
-    <input type="color" value={color} onChange={(e) => onChange(e.target.value)} className="h-8 w-8 shrink-0 cursor-pointer rounded-full border border-rule bg-transparent" aria-label="Colour" />
+    <input type="color" value={color} onChange={(e) => onChange(e.target.value)} className="h-8 w-8 shrink-0 cursor-pointer appearance-none overflow-hidden rounded-full border border-rule bg-transparent p-0 [&::-moz-color-swatch]:rounded-full [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-full [&::-webkit-color-swatch]:border-0" aria-label="Colour" />
   );
 }
 

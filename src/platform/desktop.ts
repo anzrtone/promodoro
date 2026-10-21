@@ -73,9 +73,13 @@ export const desktop: Platform = {
     /* no haptics on desktop */
   },
 
-  async pickBackupFolder() {
-    const dir = await open({ directory: true, multiple: false, title: 'Choose a folder for Promodoro backups' });
+  async pickBackupFolder(title = 'Choose a folder for Promodoro backups') {
+    const dir = await open({ directory: true, multiple: false, title });
     return typeof dir === 'string' ? dir : null;
+  },
+
+  cloudFolders() {
+    return invoke<Array<{ label: string; path: string }>>('cloud_folders');
   },
 
   async defaultBackupFolder() {
@@ -85,6 +89,16 @@ export const desktop: Platform = {
   async writeBackup(dir, fileName, contents, keep) {
     const target = dir ?? (await invoke<string>('default_backup_dir'));
     return invoke<BackupWriteResult>('backup_write', { dir: target, fileName, contents, keep });
+  },
+
+  async readSyncFiles(dir) {
+    const target = dir ?? (await invoke<string>('default_backup_dir'));
+    return invoke<Array<{ name: string; contents: string }>>('sync_read_dir', { dir: target }).then((files) => files.map((f) => ({ name: f.name, text: f.contents })));
+  },
+
+  async writeSyncFile(dir, fileName, contents) {
+    const target = dir ?? (await invoke<string>('default_backup_dir'));
+    return invoke<string>('sync_write', { dir: target, fileName, contents });
   },
 
   async revealFolder(dir) {

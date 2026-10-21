@@ -17,6 +17,33 @@ export interface KV<T = unknown> {
   value: T;
 }
 
+/** A deleted row's grave marker, so a delete travels to other devices instead of the row coming back. */
+export interface Tombstone {
+  /** `${table}:${rid}` */
+  id: string;
+  table: TombstoneTable;
+  rid: string;
+  at: number;
+}
+
+/** Tables whose rows sync by id with last-write-wins. Sessions soft-delete, so they need no tombstones. */
+export const SYNC_ROW_TABLES = ['sessions', 'presets', 'boards', 'folders', 'tasks', 'notes', 'stickers'] as const;
+export type SyncRowTable = (typeof SYNC_ROW_TABLES)[number];
+export type TombstoneTable = Exclude<SyncRowTable, 'sessions'>;
+
+/** Set on a transaction to make hooks leave timestamps and tombstones alone (sync applying remote rows). */
+export function skipSyncStamping(): void {
+  const tx = Dexie.currentTransaction as unknown as { __noStamp?: boolean } | null;
+  if (tx) tx.__noStamp = true;
+}
+const noStamp = (tx: unknown) => (tx as { __noStamp?: boolean } | null)?.__noStamp === true;
+
+const pendingTombstones = new Set<Promise<unknown>>();
+/** Wait for in-flight tombstone writes (they land just after the delete commits). */
+export async function flushTombstones(): Promise<void> {
+  while (pendingTombstones.size) await Promise.allSettled([...pendingTombstones]);
+}
+
 export class PromodoroDB extends Dexie {
   events!: Table<AnyEvent, number>;
   timers!: Table<TimerState, string>;
@@ -29,6 +56,7 @@ export class PromodoroDB extends Dexie {
   notes!: Table<Note, string>;
   stickers!: Table<Sticker, string>;
   settings!: Table<KV, string>;
+  tombstones!: Table<Tombstone, string>;
 
   constructor(name = 'promodoro') {
     super(name);
@@ -51,6 +79,44 @@ export class PromodoroDB extends Dexie {
       folders: 'id, order, parentId',
       notes: 'id, updatedAt, boardId, folderId',
     });
+    // v3: cross-device sync. Rows carry `updatedAt` (stamped by the hooks below) and deletes leave tombstones.
+    this.version(3).stores({
+      tombstones: 'id, at',
+    });
+    this.installSyncHooks();
+  }
+
+  private installSyncHooks(): void {
+    const self = this;
+    const stamped: Array<[SyncRowTable, Table<{ updatedAt?: number }, string>]> = [
+      ['sessions', this.sessions],
+      ['presets', this.presets],
+      ['boards', this.boards],
+      ['folders', this.folders],
+      ['tasks', this.tasks],
+      ['notes', this.notes],
+      ['stickers', this.stickers],
+    ];
+    for (const [name, table] of stamped) {
+      // Seed rows pass updatedAt: 0 explicitly so they always lose to a real edit.
+      table.hook('creating', (_pk, obj, tx) => {
+        if (!noStamp(tx) && obj.updatedAt === undefined) obj.updatedAt = Date.now();
+      });
+      table.hook('updating', (_mods, _pk, obj, tx) => {
+        if (noStamp(tx)) return;
+        return { updatedAt: Math.max(Date.now(), (obj.updatedAt ?? 0) + 1) };
+      });
+      if (name === 'sessions') continue;
+      table.hook('deleting', function (pk, _obj, tx) {
+        if (noStamp(tx)) return;
+        const rid = String(pk);
+        this.onsuccess = () => {
+          const w = Dexie.ignoreTransaction(() => self.tombstones.put({ id: `${name}:${rid}`, table: name as TombstoneTable, rid, at: Date.now() }));
+          pendingTombstones.add(w);
+          void w.catch(() => undefined).finally(() => pendingTombstones.delete(w));
+        };
+      });
+    }
   }
 }
 

@@ -46,8 +46,15 @@ export const dev: Platform = {
   async defaultBackupFolder() {
     return '(browser downloads — dev only)';
   },
-  async writeBackup(_dir, fileName, contents) {
-    await dev.saveExport(fileName, 'application/json', contents);
+  async readSyncFiles() {
+    return [];
+  },
+  // The browser can't write into a folder, and these run on a timer (auto-sync, auto-backup): a Save dialog
+  // popping up every few hours is worse than nothing. Use the Export buttons to test downloads here.
+  async writeSyncFile(_dir, fileName) {
+    return fileName;
+  },
+  async writeBackup(_dir, fileName) {
     return { path: fileName, pruned: 0 };
   },
 };

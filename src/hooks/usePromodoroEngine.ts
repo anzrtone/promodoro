@@ -407,6 +407,8 @@ class Engine {
   nudge = (id: string, minutes: number) => this.ev(id, 'timer.nudge', { ms: minutes * MINUTE });
   /** Turn the clock forward: log minutes worked before the timer was started. */
   backfill = (id: string, minutes: number) => this.ev(id, 'timer.backfill', { ms: minutes * MINUTE });
+  /** Scrub the clock: move elapsed time by `ms` (negative winds it back). */
+  adjust = (id: string, ms: number) => this.ev(id, 'timer.adjust', { ms });
   overtime = (id: string, on: boolean, softTargetMin?: number) =>
     this.ev(id, 'timer.overtime', { on, softTargetMs: softTargetMin !== undefined ? softTargetMin * MINUTE : undefined });
 

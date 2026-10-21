@@ -172,6 +172,9 @@ pub fn run() {
             files::write_base64_file,
             files::default_backup_dir,
             files::backup_write,
+            files::cloud_folders,
+            files::sync_read_dir,
+            files::sync_write,
             files::reveal_folder,
         ])
         .run(tauri::generate_context!())

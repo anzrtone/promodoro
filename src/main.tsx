@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@/styles/index.css';
 import { App } from './App';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { requestPersistence } from '@/db/schema';
 import { ensureSeeded } from '@/db/settings';
 import { loadPlatform } from '@/platform';
@@ -9,6 +10,9 @@ import { engine } from '@/hooks/usePromodoroEngine';
 import { startAutoBackupLoop } from '@/features/autoBackup';
 import { unlockAudio } from '@/audio/engine';
 import { syncSurvey } from '@/features/survey';
+import { clearLeftoverDemo } from '@/features/demo';
+import { sendPing } from '@/features/ping';
+import { startAutoSyncLoop } from '@/sync';
 
 async function boot() {
   await loadPlatform();
@@ -17,6 +21,9 @@ async function boot() {
   await engine.start();
   startAutoBackupLoop();
   void syncSurvey();
+  void clearLeftoverDemo();
+  void sendPing();
+  startAutoSyncLoop();
   if (import.meta.env.DEV) {
     const { seedDemoData } = await import('@/dev/seed');
     Object.assign(window, { promodoroSeed: seedDemoData });
@@ -26,7 +33,9 @@ async function boot() {
 
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
-      <App />
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>
     </StrictMode>,
   );
 }

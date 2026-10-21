@@ -29,6 +29,7 @@ export function startTimer(e: LogEvent<'timer.start'>): TimerState {
     plannedMs: Math.max(0, d.plannedMs),
     nudgedMs: 0,
     backfillMs: 0,
+    adjustMs: 0,
     backdatedMs: Math.max(0, d.backdateMs ?? 0),
     createdAt: e.ts,
     createdTz: e.tz,
@@ -59,9 +60,10 @@ export function timedAt(s: TimerState, t: number): number {
   return sum;
 }
 
-export const recovered = (s: TimerState) => s.backdatedMs + s.backfillMs;
+/** Time on the clock that the timer didn't measure itself. Signed: scrubbing back makes it negative. */
+export const recovered = (s: TimerState) => s.backdatedMs + s.backfillMs + s.adjustMs;
 export const targetOf = (s: TimerState) => (s.plannedMs > 0 ? s.plannedMs + s.nudgedMs : 0);
-export const totalAt = (s: TimerState, t: number) => timedAt(s, t) + recovered(s);
+export const totalAt = (s: TimerState, t: number) => Math.max(0, timedAt(s, t) + recovered(s));
 
 function openRun(s: TimerState): [number, number | null] | undefined {
   const last = s.runs[s.runs.length - 1];
@@ -109,6 +111,17 @@ export function applyEvent(s: TimerState | null, e: AnyEvent): TimerState | null
     case 'timer.backfill': {
       const next = { ...base, backfillMs: Math.max(0, s.backfillMs + e.data.ms) };
       if (next.alarmAt !== null && targetOf(next) > totalAt(next, ts)) next.alarmAt = null;
+      return next;
+    }
+
+    case 'timer.adjust': {
+      // Scrubbing can wind the clock back, but never to less than nothing worked.
+      const floor = -(timedAt(s, ts) + s.backdatedMs + s.backfillMs);
+      const next = { ...base, adjustMs: Math.max(floor, s.adjustMs + e.data.ms) };
+      if (next.alarmAt !== null && targetOf(next) > totalAt(next, ts)) {
+        next.alarmAt = null;
+        next.alarmLate = false;
+      }
       return next;
     }
 
@@ -175,8 +188,8 @@ export function foldTimers(events: AnyEvent[]): Map<string, TimerState> {
 export function snapshot(s: TimerState, now: number): TimerSnapshot {
   const at = s.status === 'done' && s.endedAt !== null ? s.endedAt : now;
   const timedMs = timedAt(s, at);
-  const recoveredMs = recovered(s);
-  const totalMs = timedMs + recoveredMs;
+  const recoveredMs = Math.max(0, recovered(s));
+  const totalMs = Math.max(0, timedMs + recovered(s));
   const targetMs = targetOf(s);
   const remainingMs = targetMs > 0 ? targetMs - totalMs : 0;
   const inOvertime = targetMs > 0 && s.overtime && totalMs > targetMs;
@@ -255,7 +268,7 @@ export function toSession(s: TimerState): Session | null {
     recoveredMs: snap.recoveredMs,
     pausedMs: snap.pausedMs,
     overtimeMs: s.overtime ? Math.max(0, snap.totalMs - snap.targetMs) * (snap.targetMs > 0 ? 1 : 0) : 0,
-    source: snap.recoveredMs > 0 ? 'adjusted' : 'timed',
+    source: recovered(s) !== 0 ? 'adjusted' : 'timed',
     endReason: s.endReason ?? undefined,
     note: s.note,
     mood: s.mood,

@@ -4,7 +4,7 @@
  */
 import type { Period } from '@/engine/stats';
 import { addDays, dayStart, DAY, formatDuration, HOUR, MINUTE, weekStart } from '@/engine/time';
-import { cx } from './ui';
+import { cx, Stepper } from './ui';
 
 const localDate = (day: string) => new Date(dayStart(day) + DAY / 2);
 const shortDate = (day: string) => localDate(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
@@ -114,20 +114,12 @@ export function SubjectDonut({ slices }: { slices: SubjectSlice[] }) {
   );
 }
 
-export const GOAL_CHOICES = [30, 60, 90, 120, 180, 240, 300, 360, 480].map((m) => m * MINUTE);
-
 export function GoalPicker({ goalMs, onChange }: { goalMs: number; onChange: (ms: number) => void }) {
   return (
-    <label className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink/45">
+    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-ink/45">
       goal
-      <select className="field !w-auto !py-1 !text-[13px] normal-case" value={goalMs} onChange={(e) => onChange(Number(e.target.value))}>
-        {(GOAL_CHOICES.includes(goalMs) ? GOAL_CHOICES : [...GOAL_CHOICES, goalMs].sort((a, b) => a - b)).map((ms) => (
-          <option key={ms} value={ms}>
-            {formatDuration(ms)} a day
-          </option>
-        ))}
-      </select>
-    </label>
+      <Stepper value={Math.round(goalMs / MINUTE)} min={5} max={1440} step={15} suffix="m/day" onChange={(m) => onChange(m * MINUTE)} />
+    </div>
   );
 }
 

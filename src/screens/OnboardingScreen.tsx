@@ -2,6 +2,7 @@
  * The welcome notebook. A few pages, one question each, with Pomo reacting as you go.
  * Every page can be skipped; nothing here is required to use the app.
  */
+import { LEGAL_URL } from '@/config/legal';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { ArrowLeft, Check, ShieldCheck } from 'lucide-react';
@@ -99,7 +100,7 @@ export function OnboardingScreen({ mode, settings: s, onDone }: { mode: Onboardi
 
   return (
     <div className="bg-notebook fixed inset-0 z-50 overflow-y-auto [--pm-margin-x:28px] md:[--pm-margin-x:44px]" role="dialog" aria-modal aria-label="Welcome to Promodoro">
-      <div className="flex min-h-full items-center justify-center px-4 py-8 safe-pt safe-pb">
+      <div className="flex min-h-full items-center justify-center px-4 py-8 pb-[calc(2rem+env(safe-area-inset-bottom))] safe-pt">
         <div className="sticky-note relative w-full max-w-[520px] px-5 pb-5 pt-7 sm:px-8">
           <div className="washi" />
           <div className="absolute right-3 top-3">
@@ -160,6 +161,15 @@ export function OnboardingScreen({ mode, settings: s, onDone }: { mode: Onboardi
               {nextLabel}
             </button>
           </div>
+          {mode === 'full' && (
+            <p className="mt-4 text-center text-[12px] text-ink/55">
+              By using Promodoro you agree to the{' '}
+              <a className="underline hover:text-ink" href={LEGAL_URL} target="_blank" rel="noreferrer">
+                Terms &amp; Privacy
+              </a>
+              . You must be 13 or older.
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -351,7 +361,7 @@ function ConsentPage({
   const payload = buildSurveyPayload({ survey: { ...draft, answeredAt: Date.now() }, installId });
   return (
     <div>
-      <PageTitle hint="Promodoro has no accounts and no tracking. This is the only thing it can ever send, and only if you say yes.">Help Pomo grow?</PageTitle>
+      <PageTitle hint="Promodoro has no accounts and no ads. Besides this optional survey, it only sends a once-a-day anonymous count of installs (you can switch that off in Settings).">Help Pomo grow?</PageTitle>
       <div className="rounded-note border border-rule bg-sheet px-4">
         <Toggle checked={share} onChange={onShare} label="Share my two answers anonymously" hint="Helps decide what to build next." />
       </div>

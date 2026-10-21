@@ -136,3 +136,93 @@ describe('greeting', () => {
     expect(greeting('  ', 20)).toBe('Good evening, friend!');
   });
 });
+
+describe('tour', () => {
+  it('skips steps that point at things that were never made', async () => {
+    const { tourTarget, tourText } = await import('@/features/tour');
+    expect(tourTarget('folder:{folder}', {})).toBe('');
+    expect(tourTarget('folder:{folder}', { folderId: 'f1' })).toBe('folder:f1');
+    expect(tourTarget('stats-tiles', {})).toBe('stats-tiles');
+    expect(tourText('Inside “{folder}”, {name}!', { folderName: 'School' }, '')).toBe('Inside “School”, friend!');
+  });
+
+  it('makes a folder, then a subject inside it, and moves on', async () => {
+    const { makeForTour, setTourStep, startTour, suggestName, TOUR } = await import('@/features/tour');
+    await updateSettings({ survey: { uses: ['study'], usesOther: '', heardFrom: null, heardOther: '', answeredAt: 1 } });
+    expect(await suggestName('folder')).toBe('School');
+    startTour();
+    const folderStep = TOUR.findIndex((s) => s.make === 'folder');
+    setTourStep(folderStep);
+    await makeForTour('folder', '  ');
+    await makeForTour('subject', 'Chemistry');
+    const folder = (await db.folders.toArray())[0];
+    expect(folder.name).toBe('School');
+    const subject = (await db.boards.toArray()).find((b) => b.name === 'Chemistry');
+    expect(subject?.folderId).toBe(folder.id);
+    setTourStep(null);
+  });
+});
+
+describe('welcome-tour sample notebook', () => {
+  it('builds a varied history ending yesterday, with a show-and-tell day', async () => {
+    const { buildDemo } = await import('@/features/demo');
+    const { addDays } = await import('@/engine/time');
+    const d = buildDemo('2026-10-21', [{ id: 'a' }, { id: 'b' }, { id: 'c' }]);
+    const yesterday = d.sessions.filter((s) => s.day === '2026-10-20');
+    expect(yesterday.length).toBeGreaterThan(5);
+    expect(new Set(d.sessions.map((s) => s.source))).toEqual(new Set(['timed', 'adjusted', 'manual', 'imported']));
+    expect(d.sessions.some((s) => s.overtimeMs > 0)).toBe(true);
+    expect(d.sessions.some((s) => s.endReason === 'early')).toBe(true);
+    expect(d.sessions.every((s) => s.day < '2026-10-21')).toBe(true);
+    expect(d.daily.length).toBeGreaterThan(20);
+    expect(d.tasks.filter((t) => t.done && t.doneAt! >= Date.parse(addDays('2026-10-21', -8)))).toHaveLength(6);
+    // Deterministic for a given day.
+    expect(buildDemo('2026-10-21', [{ id: 'a' }]).sessions.length).toBe(buildDemo('2026-10-21', [{ id: 'a' }]).sessions.length);
+  });
+
+  it('lives in its own database and goes away when the tour ends', async () => {
+    const { startDemo, stopDemo, viewDb } = await import('@/features/demo');
+    await startDemo();
+    const demo = viewDb();
+    expect(demo).not.toBe(db);
+    expect(await demo.sessions.count()).toBeGreaterThan(20);
+    expect(await db.sessions.count()).toBe(0); // the real notebook is untouched
+    expect((await demo.boards.toArray()).length).toBeGreaterThanOrEqual(3);
+    await stopDemo();
+    expect(viewDb()).toBe(db);
+  });
+});
+
+describe('tour back button', () => {
+  it('goes back a step, and passes over a folder step that was already done', async () => {
+    const { getTourStep, makeForTour, setTourStep, startTour, tourBack, TOUR } = await import('@/features/tour');
+    startTour('main');
+    const folderStep = TOUR.findIndex((s) => s.make === 'folder');
+    setTourStep(folderStep);
+    await makeForTour('folder', 'School');
+    // Now on the "here's your folder" step; Back skips the finished make-folder step.
+    expect(getTourStep()).toBe(folderStep + 1);
+    tourBack();
+    expect(getTourStep()).toBe(folderStep - 1);
+    tourBack();
+    expect(getTourStep()).toBe(folderStep - 2);
+    setTourStep(null);
+  });
+});
+
+describe('tour sample data on replay', () => {
+  it('a replayed tour shows the sample, and the real notebook is unchanged afterwards', async () => {
+    const { setTourStep, startTour, TOUR } = await import('@/features/tour');
+    const { viewDb } = await import('@/features/demo');
+    await db.sessions.put({ id: 'mine', start: 0, end: 1, day: '2026-01-01', phase: 'focus', actualMs: 1 } as Session);
+    startTour('main'); // what "Replay Pomo's tour" calls
+    setTourStep(TOUR.findIndex((s) => s.screen === 'stats'));
+    await new Promise((r) => setTimeout(r, 300));
+    expect(viewDb()).not.toBe(db);
+    expect(await viewDb().sessions.get('mine')).toBeUndefined(); // own data hidden during the tour
+    setTourStep(null);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(viewDb()).toBe(db);
+    expect(await db.sessions.get('mine')).toBeDefined(); // and still there afterwards
+  });
+});

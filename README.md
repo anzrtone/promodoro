@@ -21,7 +21,8 @@ Promodoro is the focus timer for people who want structure without pressure. It 
 | **Share my page** | Turn any day into a handwritten notebook-page PNG to post. It includes a small *"made with Promodoro"* footer, which works as word-of-mouth without a server. |
 | **Desktop superpowers** | Tray icon with a live timer, close-to-tray, global **Ctrl+Alt+P**, a **sticky-note mode** (tiny always-on-top window), and Rust-side alarms that ring even when the window is hidden. |
 | **Android done right** | Exact alarms through AlarmManager, a notification channel per alarm sound (WAVs rendered from the same synth), a quiet ongoing "running timer" notification with Pause/Done actions, and haptics. |
-| **Your data, your device** | No account and no server (the only network call is an opt-in, anonymous welcome survey). Data lives in IndexedDB inside the app, with **automatic backups to a folder you own**, JSON/CSV export/import, and CSV import from Forest, Flow or spreadsheets with duplicate detection. |
+| **Your data, your device** | No account needed and no database to host. Data lives in IndexedDB inside the app, with **automatic backups to a folder you own**, JSON/CSV export/import, and CSV import from Forest, Flow or spreadsheets with duplicate detection. The only network calls are an anonymous once-a-day user count (random id, platform, version; off switch in Settings), the opt-in survey, and optional encrypted device sync. |
+| **Sync your devices** | Set up once, then tap **Sync now**. Pick a **pairing code** (end-to-end encrypted through a tiny relay), a **cloud folder** (it finds your Dropbox, OneDrive, Google Drive or iCloud and makes the folder for you: no server at all) or a plain **file**. New sessions, edits and deletes merge both ways. |
 | **Free core, cosmetic extras** | Timer, history, recovery, export and dark mode are free forever. Supporter keys (verified **offline** with Ed25519) unlock extra notebook themes and Pomo outfits. |
 
 ---
@@ -152,7 +153,7 @@ There is **no server and no database to host**, so it costs nothing to run. Each
   - **Android**: backups go to `Documents/Promodoro`, which **survives uninstalling the app**. Google Drive, Syncthing or FolderSync can copy it elsewhere.
 - **Restore** any backup on any device, either merged into the existing data or replacing it.
 - **Uninstalling the Android app deletes its internal data**, and only backups survive. The app says this plainly and turning on auto-backup earns a sticker.
-- Data doesn't sync between devices. Move it by exporting on one device and importing on the other.
+- Timers that are running don't move between devices; finished sessions, subjects, notes, tasks, presets, stickers and your look-and-feel settings do (see Settings → Sync your devices).
 
 ## Welcome notebook & opt-in survey
 
@@ -160,13 +161,17 @@ On first launch Pomo walks through a short welcome notebook: your name (kept on 
 
 Sharing the two survey answers is **opt-in, off by default, and anonymous**. The app sends only those answers plus a random install id, the platform and the app version, and shows the exact JSON before anyone opts in. It never sends the name, sessions, notes or subjects. Turning sharing off asks the endpoint to delete the row. Failed sends retry on the next launch.
 
-To collect answers, deploy the tiny Cloudflare Worker in `scripts/survey-worker.js` (deploy steps are in its header) and build with:
+To collect answers (and count users, and relay device sync), deploy the tiny Cloudflare Worker in [`worker/`](worker/README.md) and build with:
 
 ```bash
-VITE_SURVEY_ENDPOINT=https://promodoro-survey.<you>.workers.dev npm run build
+VITE_API_URL=https://promodoro-api.<you>.workers.dev npm run build
 ```
 
 The desktop CSP already allows `https://*.workers.dev`. If you host the endpoint anywhere else, add that origin to `connect-src` in `src-tauri/tauri.conf.json`. Without an endpoint nothing is sent: consent is remembered, and the answers still personalise the app.
+
+### Sync, in short
+
+Every synced row carries an `updatedAt` and every delete leaves a tombstone, so merging two devices is a repeatable, order-independent function (`src/sync/merge.ts`): the newer edit wins, a delete beats an older copy, event logs are unioned. The relay method derives a relay id and an AES-256-GCM key from a 100-bit pairing code, so the server only holds ciphertext it can't read. The user count is a separate, always-on daily ping (random id, platform and version) that is disclosed in Settings → About.
 
 ## Supporter keys (monetisation without a server)
 
@@ -176,6 +181,12 @@ npm run license:sign -- "ada@example.com"  # prints PROMO-xxxx.yyyy, send it to 
 ```
 
 Sell or tip through Ko-fi, Gumroad or Lemon Squeezy and email the key. Set `SUPPORT_URL` in `src/screens/SettingsScreen.tsx`. Keys only unlock cosmetics; the core app is free forever.
+
+## License and legal
+
+The code is free software under the [GNU AGPL-3.0](LICENSE). The name, the Pomo mascot and the icons are not part of that license (see [ASSETS.md](ASSETS.md)). Contributions: [CONTRIBUTING.md](CONTRIBUTING.md).
+
+[Terms & Privacy](TERMS_AND_PRIVACY.md) explains the data the app can send.
 
 ## Principles
 

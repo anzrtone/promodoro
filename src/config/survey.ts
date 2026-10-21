@@ -1,8 +1,8 @@
+import { API_BASE } from './api';
+
 /**
- * Where opted-in welcome-survey answers go. Set VITE_SURVEY_ENDPOINT at build time
- * (e.g. the Cloudflare Worker from scripts/survey-worker.js). Unset means nothing is ever sent:
- * answers still personalise the app, and consent is remembered for when an endpoint exists.
- *
- * Desktop builds also need the endpoint's origin in `connect-src` (src-tauri/tauri.conf.json).
+ * Where opted-in welcome-survey answers go: `<API>/survey` on the Worker in worker/.
+ * No API configured means nothing is ever sent: answers still personalise the app, and
+ * consent is remembered for when an endpoint exists.
  */
-export const SURVEY_ENDPOINT: string | null = (import.meta.env.VITE_SURVEY_ENDPOINT as string | undefined)?.trim() || null;
+export const SURVEY_ENDPOINT: string | null = API_BASE ? `${API_BASE}/survey` : null;

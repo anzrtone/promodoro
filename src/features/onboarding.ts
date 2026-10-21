@@ -119,7 +119,7 @@ export async function completeOnboarding(mode: OnboardingMode, r: OnboardingResu
   });
   void syncSurvey();
   // The tour hands out the sticker at its end; everyone else gets it now.
-  if (mode === 'full' && tour) startTour();
+  if (mode === 'full' && tour) startTour('main');
   else if (mode !== 'survey') void award('nice-to-meet-you');
 }
 

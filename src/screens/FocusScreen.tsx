@@ -10,6 +10,7 @@ import { PromodoroCard } from '@/components/PromodoroCard';
 import { Notices, WrapSheet } from '@/components/SessionSheets';
 import { SideTimers } from '@/components/SideTimers';
 import { TaskNote } from '@/components/TaskNote';
+import { FocusMode } from '@/components/FocusMode';
 
 export function FocusScreen() {
   return (
@@ -21,6 +22,7 @@ export function FocusScreen() {
       <TaskNote />
       <BackupReminder />
       <WrapSheet />
+      <FocusMode />
     </div>
   );
 }

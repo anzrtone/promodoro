@@ -24,6 +24,8 @@ const fake: Platform = {
   pickBackupFolder: async () => null,
   defaultBackupFolder: async () => null,
   writeBackup: async () => ({ path: '', pruned: 0 }),
+  readSyncFiles: async () => [],
+  writeSyncFile: async () => '',
 };
 
 beforeAll(() => {

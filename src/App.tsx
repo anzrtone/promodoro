@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart3, CalendarClock, FolderOpen, Maximize2, Settings, Sticker, Timer } from 'lucide-react';
 import { setAmbient } from '@/audio/engine';
@@ -10,6 +10,7 @@ import { navigate, useNav, type Tab } from '@/features/nav';
 import { dismissToast, useToasts } from '@/features/toasts';
 import { STICKER_ART, stickerDef } from '@/features/stickers';
 import { engine, usePromodoroEngine } from '@/hooks/usePromodoroEngine';
+import { isFocusMode, setFocusMode } from '@/features/focusMode';
 import { platform } from '@/platform';
 import { PromodoroCard } from '@/components/PromodoroCard';
 import { cx } from '@/components/ui';
@@ -39,6 +40,7 @@ export function App() {
   useTheme(settings.theme, settings.license);
   useAmbientAutoplay();
   useKeyboardShortcuts();
+  useFocusModeAutoOpen(settings.focusModeAuto);
   const newStickers = useLiveQuery(() => db.stickers.filter((s) => !s.seen).count(), [], 0);
 
   // Android back: close sheets first, then go back to Focus, then minimise.
@@ -72,6 +74,12 @@ export function App() {
     };
   }, [mini]);
 
+  // The scroller is shared by every tab, so each tab opens at the top.
+  const mainRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    mainRef.current?.scrollTo({ top: 0 });
+  }, [tab]);
+
   if (mini) return <MiniMode onExpand={() => window.dispatchEvent(new CustomEvent('promodoro:mini', { detail: false }))} />;
 
   const Screen = { focus: FocusScreen, subjects: SubjectsScreen, timeline: TimelineScreen, stats: StatsScreen, stickers: StickerScreen, settings: SettingsScreen }[tab];
@@ -100,7 +108,7 @@ export function App() {
         ))}
       </nav>
 
-      <main className="bg-notebook relative flex-1 overflow-y-auto overflow-x-hidden safe-pt [--pm-margin-x:28px] md:[--pm-margin-x:44px]">
+      <main ref={mainRef} className="bg-notebook relative flex-1 overflow-y-auto overflow-x-hidden safe-pt [--pm-margin-x:28px] md:[--pm-margin-x:44px]">
         <div className="min-h-full px-4 pb-28 pt-6 sm:pl-14 sm:pr-8 md:pb-10">
           <Screen />
         </div>
@@ -190,6 +198,18 @@ function useTheme(theme: string, license: string | null) {
   }, [theme, license]);
 }
 
+/** Open focus mode when a new focus session starts (not on launch with one already running, not for auto-started phases). */
+function useFocusModeAutoOpen(on: boolean) {
+  const { primary, ready } = usePromodoroEngine();
+  const seen = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!ready) return;
+    const id = primary?.id ?? null;
+    if (seen.current !== undefined && id && id !== seen.current && on && primary?.phase === 'focus' && !primary.auto) setFocusMode(true);
+    seen.current = id;
+  }, [ready, primary?.id, primary?.phase, primary?.auto, on]);
+}
+
 /** Optional: ambient bed starts with focus and fades out on breaks / when stopped. */
 function useAmbientAutoplay() {
   const { primary } = usePromodoroEngine();
@@ -206,7 +226,7 @@ function useAmbientAutoplay() {
 
 /**
  * Desktop keyboard shortcuts (ignored while typing):
- *   Space start/pause · D done · 1 / 5 nudge +1 / +5 min · O overtime · M sticky-note mode
+ *   Space start/pause · D done · 1 / 5 nudge +1 / +5 min · O overtime · F focus mode · M sticky-note mode
  */
 function useKeyboardShortcuts() {
   useEffect(() => {
@@ -222,6 +242,7 @@ function useKeyboardShortcuts() {
       } else if (key === 'd' && p) void engine.done(p.id);
       else if ((key === '1' || key === '5') && p && p.plannedMs > 0) void engine.nudge(p.id, Number(key));
       else if (key === 'o' && p && p.mode === 'countdown') void engine.overtime(p.id, !p.overtime);
+      else if (key === 'f' && p) setFocusMode(!isFocusMode());
       else if (key === 'm' && platform().kind === 'desktop') window.dispatchEvent(new CustomEvent('promodoro:mini', { detail: true }));
     };
     window.addEventListener('keydown', onKey);

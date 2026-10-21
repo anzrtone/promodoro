@@ -1,0 +1,13 @@
+name = "promodoro-api"
+main = "index.js"
+compatibility_date = "2025-01-01"
+
+# Fill in database_id after `npx wrangler d1 create promodoro` (see README.md).
+[[d1_databases]]
+binding = "DB"
+database_name = "promodoro"
+database_id = "80f2f270-d727-4811-8c3c-c2616b1fac51"
+
+[[r2_buckets]]
+binding = "SYNC"
+bucket_name = "promodoro-sync"

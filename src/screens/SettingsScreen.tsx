@@ -16,9 +16,13 @@ import { Pomo } from '@/components/Pomo';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { HEARD_OPTIONS, setSurveySharing, USE_OPTIONS } from '@/features/onboarding';
 import { buildSurveyPayload } from '@/features/survey';
+import { setPingEnabled } from '@/features/ping';
+import { LEGAL_URL } from '@/config/legal';
 import { startTour } from '@/features/tour';
 import { SoundSelect } from '@/components/PromodoroCard';
 import { BackupPanel } from '@/components/BackupPanel';
+import { SyncPanel } from '@/components/SyncPanel';
+import { DangerZone } from '@/components/DangerZone';
 import { cx, Section, Segmented, Slider, Stepper, Toggle } from '@/components/ui';
 
 /** Where supporters can buy a key / tip. Change to your own page. */
@@ -44,22 +48,42 @@ const ACCESSORIES: Array<{ id: AccessoryId; name: string }> = [
 export function SettingsScreen() {
   const nav = useNav();
   const dataRef = useRef<HTMLDivElement>(null);
+  const [tab, setTab] = useState<'general' | 'sync'>(nav.settingsSection === 'sync' ? 'sync' : 'general');
   useEffect(() => {
-    if (nav.settingsSection === 'data') dataRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (nav.settingsSection === 'sync') setTab('sync');
+    else if (nav.settingsSection === 'data') {
+      setTab('general');
+      setTimeout(() => dataRef.current?.scrollIntoView({ behavior: 'smooth' }), 0);
+    }
   }, [nav.settingsSection]);
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
-      <ProfileSettings />
-      <TimerSettings />
-      <SoundSettings />
-      <BoardSettings />
-      <AppearanceSettings />
-      <div ref={dataRef} className="space-y-4 scroll-mt-4">
-        <BackupPanel />
-      </div>
-      {platform().kind === 'desktop' && <DesktopSettings />}
-      <SupporterSettings />
-      <About />
+      <Segmented
+        value={tab}
+        onChange={setTab}
+        options={[
+          { value: 'general', label: 'General' },
+          { value: 'sync', label: 'Sync' },
+        ]}
+      />
+      {tab === 'sync' ? (
+        <SyncPanel />
+      ) : (
+        <>
+          <ProfileSettings />
+          <TimerSettings />
+          <SoundSettings />
+          <BoardSettings />
+          <AppearanceSettings />
+          <div ref={dataRef} className="space-y-4 scroll-mt-4">
+            <BackupPanel />
+          </div>
+          {platform().kind === 'desktop' && <DesktopSettings />}
+          <SupporterSettings />
+          <About />
+          <DangerZone />
+        </>
+      )}
     </div>
   );
 }
@@ -124,11 +148,17 @@ function ProfileSettings() {
           </>
         )}
       </div>
+      <Toggle
+        checked={s.pingEnabled}
+        onChange={(v) => void setPingEnabled(v)}
+        label="Anonymous daily user count"
+        hint="A random id, your platform and app version, once a day, so the developer knows roughly how many people use Promodoro. Turning it off deletes it."
+      />
       <div className="mt-3 flex flex-wrap gap-2">
         <button className="btn-soft" onClick={() => setRetake(true)}>
           {survey ? 'Change my answers' : 'Answer the survey'}
         </button>
-        <button className="btn-soft" onClick={startTour}>
+        <button className="btn-soft" onClick={() => startTour()}>
           Replay Pomo's tour
         </button>
       </div>
@@ -162,6 +192,12 @@ function TimerSettings() {
         onChange={(v) => void updateSettings({ autoAdvance: v })}
         label="Auto-advance"
         hint="Start the next phase automatically when a countdown reaches zero. Off = wait for my tap."
+      />
+      <Toggle
+        checked={s.focusModeAuto}
+        onChange={(v) => void updateSettings({ focusModeAuto: v })}
+        label="Open focus mode on start"
+        hint="Go full screen with just the timer, Pomo and your task when a focus session starts. Esc or the arrow leaves it."
       />
       <div className="py-2">
         <span className="label">Suggested break</span>
@@ -397,7 +433,7 @@ function SupporterSettings() {
   return (
     <Section title="Support Promodoro" aside={<Heart size={18} className="text-tomato" />}>
       <p className="mb-3 text-sm text-ink/65">
-        Promodoro is free, with no ads and no tracking, and it always will be. Supporters unlock cosmetic extras (notebook themes and Pomo outfits) as a thank-you.
+        Promodoro is free, with no ads, and it always will be. Supporters unlock cosmetic extras (notebook themes and Pomo outfits) as a thank-you.
       </p>
       {lic ? (
         <p className="font-hand text-[20px] text-leaf">Thank you, {lic.n}! 💛 All extras unlocked.</p>
@@ -431,7 +467,12 @@ function About() {
         Promodoro {__APP_VERSION__}. Focus at your own pace. Your progress counts, even when your day isn't perfect.
       </p>
       <p className="mt-2 text-xs text-ink/55">
-        Your notebook never leaves this device unless you export it. The only thing Promodoro can send is your welcome-survey answers, and only if you opt in (see You &amp; Pomo). Promodoro is not a medical tool and makes no clinical claims.
+        Your notebook never leaves this device unless you export it. Promodoro sends a once-a-day anonymous count (a random id, your platform and the app version) so the developer knows roughly how many people use it (switch it off in You & Pomo), and your welcome-survey answers only if you opt in (see You &amp; Pomo). Device sync, if you turn it on, is end-to-end encrypted. Promodoro is not a medical tool and makes no clinical claims.
+      </p>
+      <p className="mt-2 text-xs">
+        <a className="underline text-ink/65 hover:text-ink" href={LEGAL_URL} target="_blank" rel="noreferrer">
+          Terms &amp; Privacy
+        </a>
       </p>
     </Section>
   );

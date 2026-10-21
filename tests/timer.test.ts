@@ -168,3 +168,38 @@ describe('robustness', () => {
     expect(toSession(s)).toBeNull();
   });
 });
+
+describe('scrubbing the ring', () => {
+  it('winding back adds time to the clock and moves the alarm later', () => {
+    let s = start();
+    s = apply(s, ev('timer.adjust', T0 + 10 * MINUTE, { ms: -5 * MINUTE }));
+    expect(snapshot(s, T0 + 10 * MINUTE).remainingMs).toBe(20 * MINUTE);
+    expect(crossingAt(s)).toBe(T0 + 30 * MINUTE);
+  });
+
+  it('winding forward spends time and the alarm still lands on the exact crossing', () => {
+    let s = start();
+    s = apply(s, ev('timer.adjust', T0 + 10 * MINUTE, { ms: 10 * MINUTE }));
+    expect(snapshot(s, T0 + 10 * MINUTE).remainingMs).toBe(5 * MINUTE);
+    expect(crossingAt(s)).toBe(T0 + 15 * MINUTE);
+  });
+
+  it('works while paused, and never takes total time below zero', () => {
+    let s = start();
+    s = apply(s, ev('timer.pause', T0 + 4 * MINUTE), ev('timer.adjust', T0 + 5 * MINUTE, { ms: -60 * MINUTE }));
+    expect(snapshot(s, T0 + 6 * MINUTE).totalMs).toBe(0);
+    s = apply(s, ev('timer.resume', T0 + 6 * MINUTE));
+    expect(snapshot(s, T0 + 8 * MINUTE).totalMs).toBe(2 * MINUTE);
+  });
+
+  it('records a wound-back session honestly: timed time kept, labelled adjusted', () => {
+    let s = start();
+    s = apply(s, ev('timer.adjust', T0 + 10 * MINUTE, { ms: -4 * MINUTE }));
+    const session = toSession(apply(s, ev('timer.done', T0 + 10 * MINUTE, { reason: 'early' })))!;
+    expect(session.timedMs).toBe(10 * MINUTE);
+    expect(session.actualMs).toBe(6 * MINUTE);
+    expect(session.recoveredMs).toBe(0);
+    expect(session.start).toBe(T0);
+    expect(session.source).toBe('adjusted');
+  });
+});

@@ -5,10 +5,11 @@
  */
 import { importKey, isLikelyDuplicate, rowToSession, sessionsToCSV, type ImportRow } from '@/engine/csv';
 import type { AnyEvent, Board, Folder, Note, Preset, Session, Sticker, Task } from '@/engine/types';
-import { db, type KV } from './schema';
+import { db, flushTombstones, skipSyncStamping, type KV, type Tombstone } from './schema';
 import { append, recomputeAllDays } from './repo';
 import type { PendingEvent } from '@/engine/timer';
-import { updateSettings } from './settings';
+import { mergeBackup } from '@/sync/merge';
+import { ensureSeeded, updateSettings, type AppSettings } from './settings';
 
 export const BACKUP_FORMAT = 'promodoro-backup';
 export const BACKUP_VERSION = 1;
@@ -27,10 +28,19 @@ export interface Backup {
   notes: Note[];
   stickers: Sticker[];
   settings: KV[];
+  /** Grave markers for deleted subjects, notes, tasks…, so deletes survive a device sync. */
+  tombstones: Tombstone[];
 }
 
-export async function exportJSON(): Promise<string> {
-  const backup: Backup = {
+/** Device-specific settings that never leave this device in a backup or sync. */
+function stripDeviceSettings(kv: KV): KV {
+  if (kv.key !== 'app') return kv;
+  return { ...kv, value: { ...(kv.value as object), license: null, installId: null, surveySentAt: null, pingId: null, pingSentOn: null, sync: null, autoBackup: null } };
+}
+
+export async function buildBackup(): Promise<Backup> {
+  await flushTombstones();
+  return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
@@ -42,12 +52,14 @@ export async function exportJSON(): Promise<string> {
     folders: await db.folders.toArray(),
     notes: await db.notes.toArray(),
     stickers: await db.stickers.toArray(),
-    // Never export the supporter key or the survey install id: backups get shared around.
-    settings: (await db.settings.toArray()).map((kv) =>
-      kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: null, installId: null, surveySentAt: null } } : kv,
-    ),
+    // Never export the supporter key, install ids, sync code or folders: backups get shared around.
+    settings: (await db.settings.toArray()).map(stripDeviceSettings),
+    tombstones: await db.tombstones.toArray(),
   };
-  return JSON.stringify(backup, null, 1);
+}
+
+export async function exportJSON(): Promise<string> {
+  return JSON.stringify(await buildBackup(), null, 1);
 }
 
 export async function exportCSV(): Promise<string> {
@@ -87,6 +99,7 @@ export function parseBackup(text: string): Backup {
     notes: arr(b.notes),
     stickers: arr(b.stickers),
     settings: arr(b.settings),
+    tombstones: arr(b.tombstones),
   };
 }
 
@@ -97,65 +110,73 @@ export function parseBackup(text: string): Backup {
  */
 export async function importJSON(text: string, mode: 'merge' | 'replace'): Promise<{ sessions: number; events: number }> {
   const b = parseBackup(text);
-  const tables = [db.events, db.timers, db.sessions, db.daily, db.presets, db.boards, db.tasks, db.folders, db.notes, db.stickers, db.settings];
-  const result = await db.transaction('rw', tables, async () => {
-    let addedSessions = 0;
-    let addedEvents = 0;
-    if (mode === 'replace') {
-      const hereRow = await db.settings.get('app');
-      for (const t of tables) await t.clear();
-      await db.events.bulkAdd(b.events.map(({ id: _id, ...e }) => e as AnyEvent));
-      await db.sessions.bulkPut(b.sessions);
-      await db.presets.bulkPut(b.presets);
-      await db.boards.bulkPut(b.boards);
-      await db.tasks.bulkPut(b.tasks);
-      await db.folders.bulkPut(b.folders);
-      await db.notes.bulkPut(b.notes);
-      await db.stickers.bulkPut(b.stickers);
-      // Device-specific settings (supporter key, backup folder, survey sharing state) stay with this device.
-      const here = hereRow?.value as { license?: string; autoBackup?: unknown; shareSurvey?: boolean; installId?: string | null; surveySentAt?: number | null } | undefined;
-      await db.settings.bulkPut(
-        b.settings.map((kv) =>
-          kv.key === 'app'
-            ? {
-                ...kv,
-                value: {
-                  ...(kv.value as object),
-                  license: here?.license ?? null,
-                  autoBackup: here?.autoBackup,
-                  shareSurvey: here?.shareSurvey ?? false,
-                  installId: here?.installId ?? null,
-                  surveySentAt: here?.surveySentAt ?? null,
-                },
-              }
-            : kv,
-        ),
-      );
-      return { sessions: b.sessions.length, events: b.events.length };
-    }
-    const seen = new Set<string>();
-    await db.events.each((e) => void seen.add(`${e.ts}|${e.type}|${e.timerId ?? ''}`));
-    const newEvents = b.events.filter((e) => !seen.has(`${e.ts}|${e.type}|${e.timerId ?? ''}`)).map(({ id: _id, ...e }) => e as AnyEvent);
-    await db.events.bulkAdd(newEvents);
-    addedEvents = newEvents.length;
-    const haveIds = new Set(await db.sessions.toCollection().primaryKeys());
-    const newSessions = b.sessions.filter((s) => !haveIds.has(s.id));
-    await db.sessions.bulkPut(newSessions);
-    addedSessions = newSessions.length;
-    const addMissing = async <T extends { id: string }>(table: typeof db.presets | typeof db.boards | typeof db.tasks | typeof db.folders | typeof db.notes | typeof db.stickers, rows: T[]) => {
-      const have = new Set(await table.toCollection().primaryKeys());
-      await (table as unknown as { bulkPut(r: T[]): Promise<unknown> }).bulkPut(rows.filter((r) => !have.has(r.id)));
-    };
-    await addMissing(db.presets, b.presets);
-    await addMissing(db.boards, b.boards);
-    await addMissing(db.tasks, b.tasks);
-    await addMissing(db.folders, b.folders);
-    await addMissing(db.notes, b.notes);
-    await addMissing(db.stickers, b.stickers);
-    return { sessions: addedSessions, events: addedEvents };
+  // Merging a backup file keeps everything here and adds what's missing (deleted things included, so a
+  // restore can bring them back). Device sync uses the stricter delete-aware merge in sync/merge.ts.
+  if (mode === 'merge') {
+    const r = await mergeBackup(b, { honorDeletes: false });
+    return { sessions: r.sessions, events: r.events };
+  }
+  const tables = [db.events, db.timers, db.sessions, db.daily, db.presets, db.boards, db.tasks, db.folders, db.notes, db.stickers, db.settings, db.tombstones];
+  await db.transaction('rw', tables, async () => {
+    skipSyncStamping();
+    const hereRow = await db.settings.get('app');
+    for (const t of tables) await t.clear();
+    await db.events.bulkAdd(b.events.map(({ id: _id, ...e }) => e as AnyEvent));
+    await db.sessions.bulkPut(b.sessions);
+    await db.presets.bulkPut(b.presets);
+    await db.boards.bulkPut(b.boards);
+    await db.tasks.bulkPut(b.tasks);
+    await db.folders.bulkPut(b.folders);
+    await db.notes.bulkPut(b.notes);
+    await db.stickers.bulkPut(b.stickers);
+    await db.tombstones.bulkPut(b.tombstones);
+    // Device-specific settings (supporter key, folders, sync pairing, survey and user-count state) stay with this device.
+    const here = hereRow?.value as Partial<AppSettings> | undefined;
+    await db.settings.bulkPut(
+      b.settings.map((kv) =>
+        kv.key === 'app'
+          ? {
+              ...kv,
+              value: {
+                ...(kv.value as object),
+                license: here?.license ?? null,
+                autoBackup: here?.autoBackup,
+                shareSurvey: here?.shareSurvey ?? false,
+                installId: here?.installId ?? null,
+                surveySentAt: here?.surveySentAt ?? null,
+                pingEnabled: here?.pingEnabled ?? true,
+                pingId: here?.pingId ?? null,
+                pingSentOn: here?.pingSentOn ?? null,
+                sync: here?.sync,
+              },
+            }
+          : kv,
+      ),
+    );
   });
   await recomputeAllDays();
-  return result;
+  return { sessions: b.sessions.length, events: b.events.length };
+}
+
+/**
+ * Danger zone: erase everything on this device and start fresh. Kept on purpose: the supporter key (it
+ * was paid for) and the anonymous user-count ids (so a fresh start isn't counted as a new user).
+ * Sync is switched off, since a still-paired device would otherwise hand the data straight back.
+ */
+export async function wipeEverything(): Promise<void> {
+  const tables = [db.events, db.timers, db.sessions, db.daily, db.presets, db.boards, db.tasks, db.folders, db.notes, db.stickers, db.settings, db.tombstones];
+  await db.transaction('rw', tables, async () => {
+    skipSyncStamping();
+    const here = (await db.settings.get('app'))?.value as Partial<AppSettings> | undefined;
+    for (const t of tables) await t.clear();
+    if (here) {
+      await db.settings.put({
+        key: 'app',
+        value: { license: here.license ?? null, installId: here.installId ?? null, surveySentAt: here.surveySentAt ?? null, pingEnabled: here.pingEnabled ?? true, pingId: here.pingId ?? null, pingSentOn: here.pingSentOn ?? null },
+      });
+    }
+  });
+  await ensureSeeded();
 }
 
 export interface CsvPlan {

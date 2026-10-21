@@ -68,12 +68,19 @@ export interface Platform {
   /* ---- auto backup ---- */
   /** Whether the user must choose a folder (desktop) or it's fixed (Android). */
   backupFolderPickable: boolean;
-  /** Ask the user for a backup folder. Returns null when cancelled. */
-  pickBackupFolder(): Promise<string | null>;
+  /** Ask the user for a folder. Returns null when cancelled. */
+  pickBackupFolder(title?: string): Promise<string | null>;
+  /** Dropbox / OneDrive / Google Drive / iCloud folders found on this computer, each with the "Promodoro Sync" folder inside it to use. */
+  cloudFolders?(): Promise<Array<{ label: string; path: string }>>;
   /** Human-readable default/fixed location, if any. */
   defaultBackupFolder(): Promise<string | null>;
   /** Write one dated backup file atomically and keep only the newest `keep`. */
   writeBackup(dir: string | null, fileName: string, contents: string, keep: number): Promise<BackupWriteResult>;
+  /* ---- folder sync ---- */
+  /** Every `promodoro-sync-*.json` snapshot in the folder (this device's own file included). */
+  readSyncFiles(dir: string | null): Promise<Array<{ name: string; text: string }>>;
+  /** Write this device's snapshot file atomically. Returns where it landed. */
+  writeSyncFile(dir: string | null, fileName: string, contents: string): Promise<string>;
   /** Open the folder in the OS file browser (desktop only). */
   revealFolder?(dir: string): Promise<void>;
 

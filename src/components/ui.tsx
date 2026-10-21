@@ -27,7 +27,7 @@ export function Sheet({ open, onClose, title, children, wide }: { open: boolean;
       <div className="absolute inset-0 bg-ink/25 backdrop-blur-[1px]" onClick={onClose} />
       <div
         className={cx(
-          'relative max-h-[92vh] w-full overflow-y-auto rounded-t-sheet border border-rule bg-paper p-5 pb-8 shadow-lift animate-pop safe-pb sm:rounded-sheet',
+          'relative max-h-[92vh] w-full overflow-y-auto rounded-t-sheet border border-rule bg-paper p-5 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-lift animate-pop sm:rounded-sheet sm:pb-6',
           wide ? 'sm:max-w-2xl' : 'sm:max-w-md',
         )}
       >
@@ -117,9 +117,9 @@ export function Stepper({ value, onChange, min = 1, max = 600, step = 1, suffix 
   );
 }
 
-export function Section({ title, children, aside }: { title: ReactNode; children: ReactNode; aside?: ReactNode }) {
+export function Section({ title, children, aside, tour }: { title: ReactNode; children: ReactNode; aside?: ReactNode; tour?: string }) {
   return (
-    <section className="card relative p-4 sm:p-5">
+    <section className="card relative p-4 sm:p-5" data-tour={tour}>
       <div className="mb-2 flex items-center justify-between gap-2">
         <h3 className="font-hand text-[24px] leading-none text-tomato">{title}</h3>
         {aside}
