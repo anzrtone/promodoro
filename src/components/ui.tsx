@@ -129,9 +129,10 @@ export function Section({ title, children, aside }: { title: ReactNode; children
   );
 }
 
-export function SourceDot({ source }: { source: string }) {
-  const cls =
-    source === 'timed' ? 'bg-tomato' : source === 'adjusted' ? 'bg-tomato/60 ring-1 ring-tomato' : source === 'manual' ? 'border-2 border-dashed border-tomato bg-transparent' : 'bg-halo ring-1 ring-[#E9C85C]';
+export function SourceDot({ source, rest }: { source: string; rest?: boolean }) {
+  const cls = rest
+    ? 'bg-leaf'
+    : source === 'timed' ? 'bg-tomato' : source === 'adjusted' ? 'bg-tomato/60 ring-1 ring-tomato' : source === 'manual' ? 'border-2 border-dashed border-tomato bg-transparent' : 'bg-halo ring-1 ring-[#E9C85C]';
   return <span className={cx('inline-block h-2.5 w-2.5 shrink-0 rounded-full', cls)} />;
 }
 

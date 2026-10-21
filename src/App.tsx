@@ -33,6 +33,7 @@ export function App() {
   const [mini, setMini] = useState(false);
   useTheme(settings.theme, settings.license);
   useAmbientAutoplay();
+  useKeyboardShortcuts();
   const newStickers = useLiveQuery(() => db.stickers.filter((s) => !s.seen).count(), [], 0);
 
   // Android back: close sheets first, then go back to Focus, then minimise.
@@ -185,4 +186,29 @@ function useAmbientAutoplay() {
     else if (!primary || isBreak(primary.phase) || primary.status === 'paused') setAmbient(null, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, s.ambientAutoplay, s.ambient]);
+}
+
+/**
+ * Desktop keyboard shortcuts (ignored while typing):
+ *   Space start/pause · D done · 1 / 5 nudge +1 / +5 min · O overtime · M sticky-note mode
+ */
+function useKeyboardShortcuts() {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (e.ctrlKey || e.metaKey || e.altKey || el.closest('input, textarea, select, [contenteditable]')) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      const p = engine.primary();
+      const key = e.key.toLowerCase();
+      if (key === ' ') {
+        e.preventDefault();
+        void engine.toggle();
+      } else if (key === 'd' && p) void engine.done(p.id);
+      else if ((key === '1' || key === '5') && p && p.plannedMs > 0) void engine.nudge(p.id, Number(key));
+      else if (key === 'o' && p && p.mode === 'countdown') void engine.overtime(p.id, !p.overtime);
+      else if (key === 'm' && platform().kind === 'desktop') window.dispatchEvent(new CustomEvent('promodoro:mini', { detail: true }));
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 }

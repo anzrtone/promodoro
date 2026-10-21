@@ -321,7 +321,7 @@ function DesktopSettings() {
         </button>
         <span className="text-sm text-ink/60">
           A tiny always-on-top note. Global shortcut: <kbd className="rounded border border-rule bg-sheet px-1.5 text-xs">Ctrl</kbd>+<kbd className="rounded border border-rule bg-sheet px-1.5 text-xs">Alt</kbd>+
-          <kbd className="rounded border border-rule bg-sheet px-1.5 text-xs">P</kbd> starts/pauses from anywhere.
+          <kbd className="rounded border border-rule bg-sheet px-1.5 text-xs">P</kbd> starts/pauses from anywhere. In the app: Space start/pause, D done, 1/5 nudge, O overtime, M sticky note.
         </span>
       </div>
     </Section>

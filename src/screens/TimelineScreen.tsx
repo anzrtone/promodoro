@@ -381,7 +381,7 @@ function DayList({ sessions, onOpen }: { sessions: Session[]; onOpen: (s: Sessio
             <li key={s.id}>
               <button className="flex h-10 w-full items-center gap-3 pl-3 pr-4 text-left hover:bg-halo/20" onClick={() => onOpen(s)}>
                 <span className="w-[52px] shrink-0 text-[12px] font-bold text-ink/50">{s.bulk ? 'lump' : formatTimeOfDay(s.start)}</span>
-                <SourceDot source={s.source} />
+                <SourceDot source={s.source} rest={s.phase === 'short' || s.phase === 'long'} />
                 <span className="flex-1 truncate font-hand text-[24px] leading-none">
                   {s.label ?? (s.phase === 'focus' ? 'Focus' : s.phase === 'side' ? 'Side timer' : 'Break')}
                   {s.note && <span className="text-ink/50"> · {s.note}</span>}
