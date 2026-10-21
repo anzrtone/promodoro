@@ -61,6 +61,8 @@ export interface Platform {
   requestNotificationPermission(): Promise<boolean>;
   /** Let the user save an export somewhere (Save dialog on desktop, share sheet on Android). */
   saveExport(fileName: string, mime: string, contents: string): Promise<string | null>;
+  /** Same as saveExport for binary data (e.g. the shareable PNG page), base64-encoded. */
+  saveBinary(fileName: string, mime: string, base64: string): Promise<string | null>;
   vibrate(kind: 'tap' | 'alarm' | 'success'): void;
 
   /* ---- auto backup ---- */

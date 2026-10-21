@@ -37,7 +37,7 @@ export class PromodoroDB extends Dexie {
       daily: 'day',
       presets: 'id, order',
       boards: 'id, order',
-      tasks: 'id, done, createdAt, boardId',
+      tasks: 'id, createdAt, boardId',
       stickers: 'id, earnedAt',
       settings: 'key',
     });

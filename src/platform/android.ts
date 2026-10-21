@@ -167,6 +167,12 @@ export const android: Platform = {
     return res.uri;
   },
 
+  async saveBinary(fileName, _mime, base64) {
+    const res = await Filesystem.writeFile({ path: fileName, data: base64, directory: Directory.Cache });
+    await Share.share({ title: fileName, dialogTitle: 'Share your notebook page', files: [res.uri] });
+    return res.uri;
+  },
+
   vibrate(kind) {
     if (kind === 'tap') void Haptics.impact({ style: ImpactStyle.Light });
     else if (kind === 'success') void Haptics.notification({ type: NotificationType.Success });

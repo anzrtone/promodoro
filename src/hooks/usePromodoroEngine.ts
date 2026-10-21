@@ -94,6 +94,12 @@ class Engine {
   private lastWall = Date.now();
   private lastPerf = performance.now();
   private started = false;
+  private backHandler: (() => boolean) | null = null;
+
+  /** Android hardware back: the shell asks the UI first, then minimises. */
+  setBackHandler(fn: (() => boolean) | null) {
+    this.backHandler = fn;
+  }
 
   /* ---------- store plumbing ---------- */
 
@@ -140,6 +146,7 @@ class Engine {
       onBackground: () => {
         void this.syncNative();
       },
+      onBack: () => this.backHandler?.() ?? false,
     });
     void platform().setCloseToTray?.(this.settings.closeToTray);
     await logAppEvent('app.open');

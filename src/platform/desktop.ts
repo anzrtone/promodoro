@@ -61,6 +61,14 @@ export const desktop: Platform = {
     return path;
   },
 
+  async saveBinary(fileName, _mime, base64) {
+    const ext = fileName.split('.').pop() ?? 'png';
+    const path = await save({ defaultPath: fileName, filters: [{ name: ext.toUpperCase(), extensions: [ext] }] });
+    if (!path) return null;
+    await invoke('write_base64_file', { path, base64 });
+    return path;
+  },
+
   vibrate() {
     /* no haptics on desktop */
   },

@@ -34,6 +34,11 @@ export const dev: Platform = {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     return fileName;
   },
+  async saveBinary(fileName, mime, base64) {
+    const a = Object.assign(document.createElement('a'), { href: `data:${mime};base64,${base64}`, download: fileName });
+    a.click();
+    return fileName;
+  },
   vibrate() {},
   async pickBackupFolder() {
     return null;
