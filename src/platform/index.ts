@@ -22,3 +22,8 @@ export function platform(): Platform {
   if (!current) throw new Error('platform not loaded');
   return current;
 }
+
+/** Test hook: inject a fake bridge. */
+export function __setPlatform(p: Platform) {
+  current = p;
+}

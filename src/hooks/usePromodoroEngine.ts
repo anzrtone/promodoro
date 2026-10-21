@@ -180,24 +180,29 @@ class Engine {
 
   settle(): Promise<void> {
     if (this.settling) return this.settling;
-    this.settling = (async () => {
-      try {
-        // Loop: completing a phase can auto-start another that is itself already due.
-        for (let guard = 0; guard < 50; guard++) {
-          const now = Date.now();
-          const due = [...this.timers.values()].flatMap((t) => dueEvents(t, now));
-          if (!due.length) break;
-          await this.commit(due);
-        }
-      } finally {
-        this.settling = null;
+    const run = async () => {
+      // Loop: completing a phase can auto-start another that is itself already due.
+      for (let guard = 0; guard < 50; guard++) {
+        const now = Date.now();
+        const due = [...this.timers.values()].flatMap((t) => dueEvents(t, now));
+        if (!due.length) break;
+        await this.commit(due, { reachedZero: true });
       }
-    })();
-    return this.settling;
+    };
+    // Clear the guard asynchronously: if `run` finishes without awaiting anything, a
+    // synchronous reset would happen before the assignment below and wedge the loop.
+    const p: Promise<void> = run().finally(() => {
+      if (this.settling === p) this.settling = null;
+    });
+    this.settling = p;
+    return p;
   }
 
   /** Append events, fold results into memory, react to alarms and completions. */
-  private async commit(pending: PendingEvent[]) {
+  private async commit(pending: PendingEvent[], opts: { reachedZero?: boolean } = {}) {
+    // Auto-advance only applies when a countdown reached zero by itself (settle), never
+    // when the user tapped Done / Take a break.
+    const auto = !!opts.reachedZero && this.settings.autoAdvance;
     const res = await append(pending);
     for (const t of res.timers) {
       if (t.status === 'done') this.timers.delete(t.id);
@@ -232,7 +237,7 @@ class Engine {
         const next = breakAfter(round, preset);
         const suggested = suggestBreakMs(s.actualMs, next, preset, this.settings.breakPolicy);
         wrap = { session: s, suggestedBreakMs: suggested, nextBreak: next, late };
-        if (s.endReason === 'complete' && this.settings.autoAdvance && !this.primary()) {
+        if (s.endReason === 'complete' && auto && !this.primary()) {
           await this.startTimer({ phase: next, mode: this.settings.breakMode, minutes: suggested / MINUTE, round, presetId: preset.id, auto: true, at: s.end });
           wrap = { ...wrap, nextBreak: null };
         }
@@ -241,7 +246,7 @@ class Engine {
         const nextRound = roundAfterBreak(timer?.round ?? this.settings.round, s.phase as 'short' | 'long', preset);
         await updateSettings({ round: nextRound });
         wrap = { session: s, suggestedBreakMs: 0, nextBreak: null, late };
-        if (s.endReason === 'complete' && this.settings.autoAdvance && !this.primary()) {
+        if (s.endReason === 'complete' && auto && !this.primary()) {
           await this.startFocus({ auto: true, at: s.end, round: nextRound });
           wrap = null;
         }
@@ -255,8 +260,9 @@ class Engine {
     const s = this.settings;
     platform().vibrate('alarm');
     if (s.silent) return alarmQueue.markHandled(key);
-    // On Android the notification channel already plays the sound for on-time alarms.
-    if (platform().nativeAlarmSound() && document.hidden) return alarmQueue.markHandled(key);
+    // On Android the notification channel plays the sound for on-time alarms (foreground
+    // too), so the in-app queue stays quiet to avoid ringing twice.
+    if (platform().nativeAlarmSound()) return alarmQueue.markHandled(key);
     const soundId = isSoundId(t.soundId) ? t.soundId : t.phase === 'focus' ? s.soundId : s.breakSoundId;
     alarmQueue.enqueue({ key, soundId: isSoundId(soundId) ? soundId : 'kitchen', volume: s.volume, repeats: t.phase === 'focus' ? 2 : 1 });
   }
@@ -480,7 +486,8 @@ export function useNow(ms = 1000, active = true): number {
 export function usePromodoroEngine() {
   const state = useSyncExternalStore(engine.subscribe, engine.getState);
   const anyRunning = state.timers.some((t) => t.status === 'running');
-  const now = useNow(1000, anyRunning || state.timers.length > 0);
+  // 1 s while a timer is shown; a slow 15 s refresh otherwise (for "ended X min ago").
+  const now = useNow(anyRunning || state.timers.length > 0 ? 1000 : 15_000);
   const primary = state.timers.find((t) => t.phase !== 'side');
   const sides = state.timers.filter((t) => t.phase === 'side');
   return {

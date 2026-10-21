@@ -15,7 +15,8 @@ import type { AlarmSpec, NativeAction, Platform, PlatformHandlers, StatusSpec } 
 
 const STATUS_ID = 1;
 const BACKUP_DIR = 'Promodoro';
-const scheduled = new Map<string, number>();
+/** timerId → { notification id, due time } for alarms we've handed to AlarmManager. */
+const scheduled = new Map<string, { n: number; at: number }>();
 let lastStatusKey = '';
 let backgroundAt = 0;
 let canNotify = false;
@@ -103,22 +104,30 @@ export const android: Platform = {
   },
 
   async syncAlarms(alarms: AlarmSpec[]) {
+    const now = Date.now();
     const wanted = new Map(alarms.map((a) => [a.id, a]));
-    const cancel = [...scheduled.entries()].filter(([id]) => !wanted.has(id)).map(([, n]) => ({ id: n }));
+    // Only cancel alarms that are still in the future. One that already fired is a
+    // delivered notification: cancelling it would silence the ringing alarm.
+    const cancel: Array<{ id: number }> = [];
+    for (const [id, s] of scheduled) {
+      const w = wanted.get(id);
+      if (w && w.at === s.at) continue;
+      if (s.at > now) cancel.push({ id: s.n });
+      scheduled.delete(id);
+    }
     if (cancel.length) await LocalNotifications.cancel({ notifications: cancel });
-    for (const id of scheduled.keys()) if (!wanted.has(id)) scheduled.delete(id);
-    const toSchedule = alarms.filter((a) => a.at > Date.now() - 1000);
+    const toSchedule = alarms.filter((a) => a.at > now - 1000 && scheduled.get(a.id)?.at !== a.at);
     if (!toSchedule.length) return;
     await LocalNotifications.schedule({
       notifications: toSchedule.map((a) => {
         const id = notifId(a.id);
-        scheduled.set(a.id, id);
+        scheduled.set(a.id, { n: id, at: a.at });
         return {
           id,
           title: a.title,
           body: a.body,
           channelId: channelFor(a),
-          schedule: { at: new Date(Math.max(a.at, Date.now() + 500)), allowWhileIdle: true },
+          schedule: { at: new Date(Math.max(a.at, now + 500)), allowWhileIdle: true },
           actionTypeId: 'ALARM',
           smallIcon: 'ic_stat_pomo',
           iconColor: '#EE6B6E',
