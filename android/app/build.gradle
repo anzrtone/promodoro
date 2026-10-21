@@ -8,8 +8,8 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         // Keep in step with package.json "version" (CI passes these in).
-        versionCode (System.getenv("PROMODORO_VERSION_CODE") ?: "1") as Integer
-        versionName System.getenv("PROMODORO_VERSION_NAME") ?: "0.1.0"
+        versionCode = (System.getenv("PROMODORO_VERSION_CODE") ?: "1").toInteger()
+        versionName = System.getenv("PROMODORO_VERSION_NAME") ?: "0.1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
