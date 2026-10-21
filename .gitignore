@@ -9,3 +9,11 @@ Thumbs.db
 .vscode/
 .idea/
 __pycache__/
+
+# Promodoro
+src-tauri/target/
+src-tauri/gen/schemas/
+.license/
+*.keystore
+*.jks
+coverage/
