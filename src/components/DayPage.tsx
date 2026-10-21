@@ -17,7 +17,7 @@ import { Sheet } from './ui';
 const W = 1080;
 const H = 1350;
 
-const loadImg = (src: string) =>
+export const loadImg = (src: string) =>
   new Promise<HTMLImageElement>((res, rej) => {
     const i = new Image();
     i.onload = () => res(i);
@@ -25,7 +25,7 @@ const loadImg = (src: string) =>
     i.src = src;
   });
 
-function css(name: string) {
+export function css(name: string) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(`--pm-${name}`).trim();
   return `rgb(${v.split(/\s+/).join(',')})`;
 }
@@ -152,14 +152,14 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
   c.globalAlpha = 1;
 }
 
-function clip(c: CanvasRenderingContext2D, text: string, max: number) {
+export function clip(c: CanvasRenderingContext2D, text: string, max: number) {
   if (c.measureText(text).width <= max) return text;
   let t = text;
   while (t.length > 1 && c.measureText(t + '…').width > max) t = t.slice(0, -1);
   return t + '…';
 }
 
-function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+export function roundRect(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
   c.beginPath();
   c.moveTo(x + r, y);
   c.arcTo(x + w, y, x + w, y + h, r);

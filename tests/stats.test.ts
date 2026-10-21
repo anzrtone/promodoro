@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketDays, sessionShape, subjectTree, weekHourGrid } from '@/engine/stats';
+import { bucketDays, bySubject, focusPeriods, goalDays, sessionShape, subjectTree, tasksDone, weekHourGrid } from '@/engine/stats';
 import { HOUR, MINUTE } from '@/engine/time';
 import type { Board, Folder, Session, Task } from '@/engine/types';
 
@@ -112,5 +112,32 @@ describe('subjectTree', () => {
     const math = school.children[0].children[0];
     expect([math.name, math.ms, math.sessions]).toEqual(['Math', 90 * MINUTE, 2]);
     expect(math.children.map((n) => [n.name, n.ms])).toEqual([['Homework', 90 * MINUTE]]);
+  });
+});
+
+describe('focusPeriods', () => {
+  it('places blocks in minutes and splits at midnight', () => {
+    const p = focusPeriods(
+      [S({ start: MON + 9 * HOUR, actualMs: 30 * MINUTE, boardId: 'math' }), S({ start: MON + 23 * HOUR, actualMs: 2 * HOUR })],
+      [...ALL],
+    );
+    expect(p.get('2026-10-19')).toEqual([
+      { from: 540, to: 570, boardId: 'math' },
+      { from: 1380, to: 1440, boardId: undefined },
+    ]);
+    expect(p.get('2026-10-20')).toEqual([{ from: 0, to: 60, boardId: undefined }]);
+  });
+});
+
+describe('bySubject, tasksDone, goalDays', () => {
+  it('aggregates', () => {
+    expect(bySubject([S({ start: MON, actualMs: HOUR, boardId: 'a' }), S({ start: MON, actualMs: 2 * HOUR }), S({ start: MON, actualMs: HOUR, boardId: 'a' })], [...ALL])).toEqual([
+      { boardId: 'a', ms: 2 * HOUR },
+      { boardId: '', ms: 2 * HOUR },
+    ]);
+    const t = (doneAt?: number): Task => ({ id: String(doneAt), title: '', done: !!doneAt, doneAt, createdAt: 0 });
+    expect(tasksDone([t(MON + 12 * HOUR), t(MON - 2 * 86400000), t()], '2026-10-19', '2026-10-25')).toBe(1);
+    const sum = { day: '2026-10-19', focusMs: HOUR, breakMs: 0, overtimeMs: 0, sessions: 1, bySource: { timed: HOUR, adjusted: 0, manual: 0, imported: 0 } };
+    expect(goalDays(['2026-10-19', '2026-10-20'], new Map([[sum.day, sum]]), [...ALL], 2 * HOUR).map((g) => g.ratio)).toEqual([0.5, 0]);
   });
 });

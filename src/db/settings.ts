@@ -6,6 +6,8 @@ import { db } from './schema';
 
 export type { AmbientId };
 
+export type ShareWidgetId = 'totals' | 'bars' | 'periods' | 'subjects' | 'goal' | 'rhythm' | 'shape' | 'stickers';
+
 export type ThemeId = 'classic' | 'midnight' | 'graph' | 'sakura' | 'kraft';
 export type AccessoryId = 'none' | 'beret' | 'headphones' | 'scarf' | 'party' | 'flower';
 
@@ -57,6 +59,10 @@ export interface AppSettings {
   /** Current position in the preset cycle (1-based focus round). */
   round: number;
   chartSources: TimeSource[];
+  /** Daily focus goal for the goal rings on Stats. Rings only fill up; nothing is "missed". */
+  dailyGoalMs: number;
+  /** Which widgets go on the shareable stats card. */
+  shareWidgets: ShareWidgetId[];
   lastBackupAt: number | null;
   backupReminderDays: number;
   backupSnoozedUntil: number;
@@ -99,6 +105,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   boardId: null,
   round: 1,
   chartSources: ['timed', 'adjusted', 'manual', 'imported'],
+  dailyGoalMs: 2 * 60 * 60 * 1000,
+  shareWidgets: ['totals', 'bars', 'periods', 'subjects', 'goal', 'stickers'],
   lastBackupAt: null,
   backupReminderDays: 14,
   backupSnoozedUntil: 0,

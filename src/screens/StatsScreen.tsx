@@ -5,19 +5,23 @@
  */
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Table2, BarChart3, ChevronRight } from 'lucide-react';
+import { Table2, BarChart3, ChevronRight, Share2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { updateSettings, useSettings } from '@/db/settings';
 import {
   ALL_SOURCES,
   bucketDays,
+  bySubject,
   focusFor,
+  focusPeriods,
+  goalDays,
   hourProfile,
   pagesFilled,
   rangeStats,
   sessionShape,
   SOURCE_LABEL,
   subjectTree,
+  tasksDone,
   weekHourGrid,
   type Bucket,
   type SessionShape,
@@ -26,6 +30,8 @@ import {
 import { addDays, dayStart, DAY, formatDayLabel, formatDuration, formatHours, HOUR, today } from '@/engine/time';
 import type { DailySummary, TimeSource } from '@/engine/types';
 import { cx, Section } from '@/components/ui';
+import { FocusPeriods, GoalCalendar, GoalPicker, NO_SUBJECT_COLOR, SubjectDonut, topSlices } from '@/components/StatsWidgets';
+import { ShareStatsSheet, type StatsSnapshot } from '@/components/StatsCard';
 
 const TEXTURE: Record<TimeSource, React.CSSProperties> = {
   timed: { background: 'rgb(var(--pm-tomato))' },
@@ -60,6 +66,7 @@ export function StatsScreen() {
   const sources = settings.chartSources;
   const [range, setRange] = useState<Range>(RANGES[0]);
   const [table, setTable] = useState(false);
+  const [sharing, setSharing] = useState(false);
   const { days } = range;
   const end = today();
   const start = addDays(end, -(days - 1));
@@ -74,6 +81,7 @@ export function StatsScreen() {
   const boards = useLiveQuery(() => db.boards.toArray(), [], []);
   const folders = useLiveQuery(() => db.folders.toArray(), [], []);
   const tasks = useLiveQuery(() => db.tasks.toArray(), [], []);
+  const stickers = useLiveQuery(() => db.stickers.where('earnedAt').above(dayStart(start)).toArray(), [start], []);
 
   const summaries = both.filter((s) => s.day >= start);
   const prevSummaries = both.filter((s) => s.day < start);
@@ -87,6 +95,32 @@ export function StatsScreen() {
   const toggleSource = (s: TimeSource) => {
     const next = sources.includes(s) ? sources.filter((x) => x !== s) : [...sources, s];
     if (next.length) void updateSettings({ chartSources: next });
+  };
+
+  const done = tasksDone(tasks, start, end);
+  const prevDone = tasksDone(tasks, prevStart, addDays(start, -1));
+  const board = (id?: string) => (id ? boards.find((b) => b.id === id) : undefined);
+  const colorOf = (id?: string) => board(id)?.color ?? NO_SUBJECT_COLOR;
+  const nameOf = (id?: string) => board(id)?.name ?? 'No subject';
+  const periodDays = dayList.slice(-31);
+  const periods = focusPeriods(sessions, sources);
+  const slices = topSlices(bySubject(sessions, sources).map((r) => ({ name: nameOf(r.boardId || undefined), color: colorOf(r.boardId || undefined), ms: r.ms })));
+  const goal = goalDays(dayList, byDay, sources, settings.dailyGoalMs);
+  const hours = hourProfile(sessions, sources);
+  const shape = sessionShape(sessions, sources);
+  const rangeLabel = `${localDate(start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${localDate(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  const snapshot: StatsSnapshot = {
+    name: settings.profile.name,
+    rangeLabel,
+    rangeName: range.days === 365 ? 'this year' : `${days} days`,
+    totals: { focusMs: stats.totalMs, activeDays: stats.activeDays, totalDays: days, avgMs: stats.avgPerActiveDay, sessions: stats.sessions, tasksDone: done, prevFocusMs: prev.totalMs || undefined },
+    bars: buckets.map((b) => ({ label: barTick(b, range.unit), ms: b.days.reduce((a, d) => a + (byDay.get(d) ? focusFor(byDay.get(d)!, sources) : 0), 0) })),
+    periods: periodDays.map((d) => ({ day: d, blocks: (periods.get(d) ?? []).map((p) => ({ from: p.from, to: p.to, color: colorOf(p.boardId) })) })),
+    slices,
+    goal: { goalMs: settings.dailyGoalMs, days: goal },
+    hours,
+    shape,
+    stickers: stickers.map((s) => s.id),
   };
 
   const tree = subjectTree(sessions, sources, { boards, folders, tasks, bucketOf: (d) => bucketIndex.get(d) ?? -1, buckets: buckets.length });
@@ -109,9 +143,12 @@ export function StatsScreen() {
             {SHORT[s]}
           </button>
         ))}
+        <button className="btn-primary ml-auto !py-1.5 text-[13px]" onClick={() => setSharing(true)}>
+          <Share2 size={15} /> Share
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Tile big label={`focus, last ${range.days === 365 ? 'year' : `${days} days`}`} value={formatDuration(stats.totalMs)} sub={delta(stats.totalMs, prev.totalMs, formatDuration, vs)} />
         <Tile label="per active day" value={formatDuration(stats.avgPerActiveDay)} sub={delta(stats.avgPerActiveDay, prev.avgPerActiveDay, formatDuration, vs)} />
         <Tile
@@ -119,6 +156,8 @@ export function StatsScreen() {
           value={String(stats.sessions)}
           sub={[stats.overtimeMs ? `+${formatDuration(stats.overtimeMs)} flow overtime` : '', delta(stats.sessions, prev.sessions, String, vs)].filter(Boolean).join(' · ') || undefined}
         />
+        <Tile label="days focused" value={`${stats.activeDays}`} sub={`of ${days} days`} />
+        <Tile label="tasks done" value={String(done)} sub={prevDone || done ? delta(done, prevDone, String, vs) : undefined} />
         <Tile label="pages filled, all time" value={String(pagesFilled(all))} sub={`${formatHours(allTime)} total`} />
       </div>
 
@@ -134,21 +173,41 @@ export function StatsScreen() {
         <p className="mt-2 text-xs text-ink/50">Imported lumps and hand-added time are labelled, never judged. Toggle them above to see averages your way.</p>
       </Section>
 
+      <Section title="Focus periods" aside={days > 31 ? <span className="text-xs text-ink/45">last 31 days</span> : undefined}>
+        <FocusPeriods days={periodDays} periods={periods} colorOf={colorOf} nameOf={nameOf} />
+      </Section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <Section title="Where the time went">
+          <SubjectDonut slices={slices} />
+        </Section>
+        <Section title="Daily goal" aside={<GoalPicker goalMs={settings.dailyGoalMs} onChange={(ms) => void updateSettings({ dailyGoalMs: ms })} />}>
+          <GoalCalendar days={goal} goalMs={settings.dailyGoalMs} />
+        </Section>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-2">
         <Section title="When you focus">
-          <HourBars hours={hourProfile(sessions, sources)} />
+          <HourBars hours={hours} />
           <WeekHeatmap grid={weekHourGrid(sessions, sources)} />
         </Section>
         <Section title="How sessions go">
-          <ShapePanel shape={sessionShape(sessions, sources)} />
+          <ShapePanel shape={shape} />
         </Section>
       </div>
 
       <Section title="By subject">
         {tree.length === 0 ? <p className="font-hand text-[20px] text-ink/45">nothing yet, and that's okay</p> : <SubjectTree nodes={tree} max={tree[0].ms} />}
       </Section>
+      {sharing && <ShareStatsSheet snapshot={snapshot} onClose={() => setSharing(false)} />}
     </div>
   );
+}
+
+function barTick(b: Bucket, unit: Range['unit']): string {
+  if (unit === 'day') return localDate(b.key).toLocaleDateString(undefined, { weekday: 'narrow' });
+  if (unit === 'week') return localDate(b.key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return localDate(`${b.key}-15`).toLocaleDateString(undefined, { month: 'narrow' });
 }
 
 function Tile({ label, value, sub, big }: { label: string; value: string; sub?: string; big?: boolean }) {
@@ -195,7 +254,7 @@ function BucketBars({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit
           unit === 'day' ? (dense ? String(Number(b.key.slice(8))) : localDate(b.key).toLocaleDateString(undefined, { weekday: 'narrow' })) : bucketLabel(b, unit);
         return (
           <div key={b.key} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${bucketLabel(b, unit, true)}: ${formatDuration(total)}`}>
-            {total > 0 && (total === best || current) && <span className="mb-1 text-[11px] font-bold text-ink/70">{formatHours(total)}</span>}
+            {total > 0 && (total === best || current) && <span className="mb-1 whitespace-nowrap text-[11px] font-bold text-ink/70">{total === best && <span className="text-[#E9B949]">★ </span>}{formatHours(total)}</span>}
             <div className="flex w-full max-w-[44px] flex-col-reverse gap-[2px] overflow-hidden rounded-t-[4px] group-hover:brightness-110" style={{ height: `${(total / max) * 100}%` }}>
               {ALL_SOURCES.filter((s) => sources.includes(s) && sums[i].bySource[s] > 0).map((s) => (
                 <div key={s} style={{ ...TEXTURE[s], flexGrow: sums[i].bySource[s] }} />

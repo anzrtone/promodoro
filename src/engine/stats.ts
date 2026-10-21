@@ -1,5 +1,5 @@
 /** Aggregations over sessions. Pure; the DB layer caches the daily ones. */
-import { addDays, HOUR, localDay, weekStart } from './time';
+import { addDays, DAY, HOUR, localDay, weekStart } from './time';
 import { isBreak } from './cycle';
 import type { Board, DailySummary, Folder, Session, Task, TimeSource } from './types';
 
@@ -270,3 +270,51 @@ export function daysAwayBefore(day: string, activeDays: string[]): number {
 }
 
 export { localDay };
+
+export interface Period {
+  /** Minutes after local midnight, 0..1440. */
+  from: number;
+  to: number;
+  boardId?: string;
+}
+
+/** Focus blocks per local day, split at midnight, for the "focus periods" chart. */
+export function focusPeriods(sessions: Session[], sources: TimeSource[]): Map<string, Period[]> {
+  const out = new Map<string, Period[]>();
+  for (const s of sessions) {
+    if (!charted(s, sources)) continue;
+    let t = s.start;
+    while (t < s.end) {
+      const local = t + s.tz * 60_000;
+      const intoDay = ((local % DAY) + DAY) % DAY;
+      const seg = Math.min(s.end, t + (DAY - intoDay)) - t;
+      const day = localDay(t, s.tz);
+      const list = out.get(day) ?? [];
+      list.push({ from: intoDay / 60_000, to: (intoDay + seg) / 60_000, boardId: s.boardId });
+      out.set(day, list);
+      t += seg;
+    }
+  }
+  return out;
+}
+
+/** Focus ms per subject ('' = no subject), biggest first. */
+export function bySubject(sessions: Session[], sources: TimeSource[]): Array<{ boardId: string; ms: number }> {
+  const m = new Map<string, number>();
+  for (const s of sessions) if (live(s) && s.phase === 'focus' && sources.includes(s.source)) m.set(s.boardId ?? '', (m.get(s.boardId ?? '') ?? 0) + s.actualMs);
+  return [...m.entries()].map(([boardId, ms]) => ({ boardId, ms })).sort((a, b) => b.ms - a.ms);
+}
+
+/** Tasks ticked off on a local day within [from, to]. */
+export function tasksDone(tasks: Task[], from: string, to: string): number {
+  return tasks.filter((t) => t.done && t.doneAt && localDay(t.doneAt) >= from && localDay(t.doneAt) <= to).length;
+}
+
+/** Each day's focus against the daily goal (ratio may exceed 1). */
+export function goalDays(days: string[], byDay: Map<string, DailySummary>, sources: TimeSource[], goalMs: number) {
+  return days.map((day) => {
+    const s = byDay.get(day);
+    const ms = s ? focusFor(s, sources) : 0;
+    return { day, ms, ratio: goalMs > 0 ? ms / goalMs : 0 };
+  });
+}
