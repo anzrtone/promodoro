@@ -161,14 +161,15 @@ function DayView({ day }: { day: string }) {
   const x = (t: number) => ((t - from) / HOUR) * zoom;
   const tAt = (px: number) => from + (px / zoom) * HOUR;
 
-  // Scroll to the interesting part of the day once.
+  // Scroll to the interesting part of the day: "now" today, else the first session.
+  const firstStart = sessions.length ? Math.min(...sessions.map((x) => x.start)) : undefined;
   useEffect(() => {
     const el = scroller.current;
     if (!el) return;
-    const focusT = isToday ? now : blocks.length ? Math.min(...blocks.map((b) => b.start)) : from + 8 * HOUR;
+    const focusT = isToday ? now : Math.max(from, firstStart ?? from + 8 * HOUR);
     el.scrollLeft = Math.max(0, x(focusT) - el.clientWidth * (isToday ? 0.7 : 0.15));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [day, zoom, sessions.length > 0]);
+  }, [day, zoom, firstStart]);
 
   const pointerT = (e: RPointerEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();

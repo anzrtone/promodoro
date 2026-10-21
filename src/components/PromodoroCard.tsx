@@ -84,8 +84,8 @@ export function PromodoroCard({ compact = false }: { compact?: boolean }) {
             onClick={onPoke}
           />
           {line && !compact && (
-            <div className="absolute left-full top-2 z-10 ml-1 w-max max-w-[170px] max-sm:left-auto max-sm:right-[-12px] max-sm:top-[-30px]">
-              <div className="rounded-note border border-rule bg-sheet px-3 py-2 font-hand text-[22px] leading-tight shadow-note animate-pop">{line}</div>
+            <div className="absolute left-full top-2 z-10 ml-1 w-max max-w-[170px] max-sm:left-[62%] max-sm:top-[54%] max-sm:ml-0 max-sm:max-w-[132px]">
+              <div className="rounded-note border border-rule bg-sheet px-3 py-2 font-hand text-[22px] leading-tight shadow-note animate-pop max-sm:text-[18px]">{line}</div>
             </div>
           )}
         </div>
