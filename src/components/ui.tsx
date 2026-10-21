@@ -121,7 +121,7 @@ export function Section({ title, children, aside }: { title: ReactNode; children
   return (
     <section className="card relative p-4 sm:p-5">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="font-hand text-[26px] font-bold leading-none text-tomato">{title}</h3>
+        <h3 className="font-hand text-[24px] leading-none text-tomato">{title}</h3>
         {aside}
       </div>
       {children}
@@ -137,5 +137,5 @@ export function SourceDot({ source, rest }: { source: string; rest?: boolean }) 
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <p className="py-6 text-center font-hand text-2xl text-ink/45">{children}</p>;
+  return <p className="py-6 text-center font-hand text-[20px] text-ink/45">{children}</p>;
 }

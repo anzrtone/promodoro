@@ -4,8 +4,7 @@
 @import '@fontsource/nunito/latin-400.css';
 @import '@fontsource/nunito/latin-700.css';
 @import '@fontsource/nunito/latin-800.css';
-@import '@fontsource/caveat/latin-500.css';
-@import '@fontsource/caveat/latin-700.css';
+@import '@fontsource/patrick-hand/latin-400.css';
 
 @tailwind base;
 @tailwind components;
@@ -138,6 +137,6 @@ textarea,
     @apply rounded-card border border-rule bg-sheet;
   }
   .hand {
-    @apply font-hand text-[1.3em] leading-none;
+    @apply font-hand text-[1.1em] leading-none;
   }
 }

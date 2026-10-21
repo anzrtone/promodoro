@@ -201,7 +201,7 @@ function DayView({ day }: { day: string }) {
     <div className="space-y-4">
       <div className="card relative overflow-hidden">
         <div className="flex items-center justify-between border-b border-rule px-4 py-2">
-          <span className="font-hand text-[22px] text-ink/60">drag across a dashed gap to claim it</span>
+          <span className="font-hand text-[19px] text-ink/60">drag across a dashed gap to claim it</span>
           <div className="flex items-center gap-1">
             <button className="btn-ghost !p-1.5" onClick={() => setZoom((z) => Math.max(40, z / 1.4))} aria-label="Zoom out">
               <Minus size={16} />
@@ -235,7 +235,7 @@ function DayView({ day }: { day: string }) {
                 title={g.anchors.map((a) => a.text).join('\n') || 'Unlogged time'}
               >
                 {x(g.end) - x(g.start) > 70 && (
-                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center font-hand text-[19px] text-ink/50">
+                  <span className="pointer-events-none absolute inset-0 flex items-center justify-center font-hand text-[16px] text-ink/50">
                     unlogged {formatDuration(g.end - g.start)}
                   </span>
                 )}
@@ -284,7 +284,7 @@ function DayView({ day }: { day: string }) {
         <div className="sticky-note p-3">
           <p className="mb-1 font-display text-sm font-semibold">Memory joggers</p>
           {gaps.flatMap((g) => g.anchors).map((a) => (
-            <p key={a.ts} className="font-hand text-[21px] leading-6 text-ink/70">
+            <p key={a.ts} className="font-hand text-[18px] leading-6 text-ink/70">
               · {a.text}
             </p>
           ))}
@@ -371,7 +371,7 @@ function DayList({ sessions, onOpen }: { sessions: Session[]; onOpen: (s: Sessio
     <div className="card overflow-hidden">
       <div className="flex items-baseline justify-between border-b border-rule px-4 py-2">
         <h3 className="font-display font-semibold">The page</h3>
-        <span className="font-hand text-[22px] text-tomato">{formatDuration(focus)} focused</span>
+        <span className="font-hand text-[19px] text-tomato">{formatDuration(focus)} focused</span>
       </div>
       {sorted.length === 0 ? (
         <Empty>A blank page. Ready for whatever today holds.</Empty>
@@ -382,7 +382,7 @@ function DayList({ sessions, onOpen }: { sessions: Session[]; onOpen: (s: Sessio
               <button className="flex h-10 w-full items-center gap-3 pl-3 pr-4 text-left hover:bg-halo/20" onClick={() => onOpen(s)}>
                 <span className="w-[52px] shrink-0 text-[12px] font-bold text-ink/50">{s.bulk ? 'lump' : formatTimeOfDay(s.start)}</span>
                 <SourceDot source={s.source} rest={s.phase === 'short' || s.phase === 'long'} />
-                <span className="flex-1 truncate font-hand text-[24px] leading-none">
+                <span className="flex-1 truncate font-hand text-[20px] leading-none">
                   {s.label ?? (s.phase === 'focus' ? 'Focus' : s.phase === 'side' ? 'Side timer' : 'Break')}
                   {s.note && <span className="text-ink/50"> · {s.note}</span>}
                 </span>
@@ -472,7 +472,7 @@ function MonthView({ day, onPick }: { day: string; onPick: (d: string) => void }
               title={ms ? `${d}: ${formatDuration(ms)}` : d}
             >
               <span className={cx('absolute left-1.5 top-1 text-[11px] font-bold', k > 0.55 ? 'text-white' : 'text-ink/60')}>{Number(d.slice(8))}</span>
-              {ms > 0 && <span className={cx('absolute bottom-1 right-1.5 font-hand text-[16px]', k > 0.55 ? 'text-white' : 'text-ink/70')}>{formatHours(ms)}</span>}
+              {ms > 0 && <span className={cx('absolute bottom-1 right-1.5 font-hand text-[14px]', k > 0.55 ? 'text-white' : 'text-ink/70')}>{formatHours(ms)}</span>}
             </button>
           );
         })}

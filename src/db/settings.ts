@@ -21,6 +21,18 @@ export interface AutoBackupSettings {
   lastError: string | null;
 }
 
+/** What the welcome survey asks. Ids are stable: they're what the survey endpoint stores. */
+export type UseId = 'study' | 'code' | 'write' | 'work' | 'create' | 'bodydouble' | 'admin' | 'other';
+export type HeardId = 'friend' | 'social' | 'reddit' | 'youtube' | 'search' | 'store' | 'shared-page' | 'other';
+
+export interface SurveyAnswers {
+  uses: UseId[];
+  usesOther: string;
+  heardFrom: HeardId | null;
+  heardOther: string;
+  answeredAt: number;
+}
+
 export interface AppSettings {
   presetId: string;
   /** Gentle Flow (overtime) by default: the timer never interrupts your flow. */
@@ -53,6 +65,17 @@ export interface AppSettings {
   license: string | null;
   installedAt: number;
   onboarded: boolean;
+  /** Bumped when the welcome notebook gains pages worth showing again. */
+  onboardingVersion: number;
+  /** Stays on this device. Only Pomo uses it. */
+  profile: { name: string };
+  survey: SurveyAnswers | null;
+  /** Opt-in: send the survey answers (never the name) to the survey endpoint, anonymously. */
+  shareSurvey: boolean;
+  /** Random id created on opting in, so a retake replaces and a withdrawal deletes the same row. */
+  installId: string | null;
+  /** When the current answers reached the endpoint. Null means there's something to send (or withdraw). */
+  surveySentAt: number | null;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -83,6 +106,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   license: null,
   installedAt: 0,
   onboarded: false,
+  onboardingVersion: 0,
+  profile: { name: '' },
+  survey: null,
+  shareSurvey: false,
+  installId: null,
+  surveySentAt: null,
 };
 
 const KEY = 'app';
@@ -95,6 +124,7 @@ export async function getSettings(): Promise<AppSettings> {
     ...v,
     breakPolicy: { ...DEFAULT_SETTINGS.breakPolicy, ...(v.breakPolicy ?? {}) },
     autoBackup: { ...DEFAULT_SETTINGS.autoBackup, ...(v.autoBackup ?? {}) },
+    profile: { ...DEFAULT_SETTINGS.profile, ...(v.profile ?? {}) },
   };
 }
 
@@ -123,4 +153,9 @@ export async function ensureSeeded(): Promise<void> {
 
 export function useSettings(): AppSettings {
   return useLiveQuery(getSettings, [], DEFAULT_SETTINGS);
+}
+
+/** Undefined until the stored settings have loaded (so first-run screens don't flash for returning users). */
+export function useStoredSettings(): AppSettings | undefined {
+  return useLiveQuery(getSettings, []);
 }

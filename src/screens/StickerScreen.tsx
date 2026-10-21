@@ -17,7 +17,7 @@ export function StickerScreen() {
     <div className="mx-auto w-full max-w-4xl">
       <div className="mb-4 flex items-baseline justify-between">
         <h2 className="font-display text-2xl font-semibold">Sticker book</h2>
-        <span className="font-hand text-2xl text-tomato">
+        <span className="font-hand text-[20px] text-tomato">
           {got.size} of {STICKERS.length}
         </span>
       </div>
@@ -39,11 +39,11 @@ export function StickerScreen() {
                     draggable={false}
                   />
                 ) : (
-                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-ink/20 font-hand text-4xl text-ink/25">?</div>
+                  <div className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-ink/20 font-hand text-3xl text-ink/25">?</div>
                 )}
               </div>
               <div className="mt-1 font-display font-semibold">{s.title}</div>
-              <div className="font-hand text-[19px] leading-5 text-ink/60">{e ? s.blurb : s.hint}</div>
+              <div className="font-hand text-[16px] leading-5 text-ink/60">{e ? s.blurb : s.hint}</div>
               {e && <div className="mt-1 text-[11px] text-ink/40">{new Date(e.earnedAt).toLocaleDateString()}</div>}
             </div>
           );

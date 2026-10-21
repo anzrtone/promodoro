@@ -4,7 +4,7 @@
  * file or an interrupted write never leaves the database half-imported.
  */
 import { importKey, isLikelyDuplicate, rowToSession, sessionsToCSV, type ImportRow } from '@/engine/csv';
-import type { AnyEvent, Board, Preset, Session, Sticker, Task } from '@/engine/types';
+import type { AnyEvent, Board, Folder, Note, Preset, Session, Sticker, Task } from '@/engine/types';
 import { db, type KV } from './schema';
 import { append, recomputeAllDays } from './repo';
 import type { PendingEvent } from '@/engine/timer';
@@ -22,6 +22,9 @@ export interface Backup {
   presets: Preset[];
   boards: Board[];
   tasks: Task[];
+  /** Added later; older backups simply don't have them. */
+  folders: Folder[];
+  notes: Note[];
   stickers: Sticker[];
   settings: KV[];
 }
@@ -36,10 +39,12 @@ export async function exportJSON(): Promise<string> {
     presets: await db.presets.toArray(),
     boards: await db.boards.toArray(),
     tasks: await db.tasks.toArray(),
+    folders: await db.folders.toArray(),
+    notes: await db.notes.toArray(),
     stickers: await db.stickers.toArray(),
-    // Never export the supporter key: backups get shared around.
+    // Never export the supporter key or the survey install id: backups get shared around.
     settings: (await db.settings.toArray()).map((kv) =>
-      kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: null } } : kv,
+      kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: null, installId: null, surveySentAt: null } } : kv,
     ),
   };
   return JSON.stringify(backup, null, 1);
@@ -78,6 +83,8 @@ export function parseBackup(text: string): Backup {
     presets: arr(b.presets),
     boards: arr(b.boards),
     tasks: arr(b.tasks),
+    folders: arr(b.folders),
+    notes: arr(b.notes),
     stickers: arr(b.stickers),
     settings: arr(b.settings),
   };
@@ -90,7 +97,7 @@ export function parseBackup(text: string): Backup {
  */
 export async function importJSON(text: string, mode: 'merge' | 'replace'): Promise<{ sessions: number; events: number }> {
   const b = parseBackup(text);
-  const tables = [db.events, db.timers, db.sessions, db.daily, db.presets, db.boards, db.tasks, db.stickers, db.settings];
+  const tables = [db.events, db.timers, db.sessions, db.daily, db.presets, db.boards, db.tasks, db.folders, db.notes, db.stickers, db.settings];
   const result = await db.transaction('rw', tables, async () => {
     let addedSessions = 0;
     let addedEvents = 0;
@@ -102,12 +109,26 @@ export async function importJSON(text: string, mode: 'merge' | 'replace'): Promi
       await db.presets.bulkPut(b.presets);
       await db.boards.bulkPut(b.boards);
       await db.tasks.bulkPut(b.tasks);
+      await db.folders.bulkPut(b.folders);
+      await db.notes.bulkPut(b.notes);
       await db.stickers.bulkPut(b.stickers);
-      // Device-specific settings (supporter key, backup folder) stay with this device.
-      const here = hereRow?.value as { license?: string; autoBackup?: unknown } | undefined;
+      // Device-specific settings (supporter key, backup folder, survey sharing state) stay with this device.
+      const here = hereRow?.value as { license?: string; autoBackup?: unknown; shareSurvey?: boolean; installId?: string | null; surveySentAt?: number | null } | undefined;
       await db.settings.bulkPut(
         b.settings.map((kv) =>
-          kv.key === 'app' ? { ...kv, value: { ...(kv.value as object), license: here?.license ?? null, autoBackup: here?.autoBackup } } : kv,
+          kv.key === 'app'
+            ? {
+                ...kv,
+                value: {
+                  ...(kv.value as object),
+                  license: here?.license ?? null,
+                  autoBackup: here?.autoBackup,
+                  shareSurvey: here?.shareSurvey ?? false,
+                  installId: here?.installId ?? null,
+                  surveySentAt: here?.surveySentAt ?? null,
+                },
+              }
+            : kv,
         ),
       );
       return { sessions: b.sessions.length, events: b.events.length };
@@ -121,13 +142,15 @@ export async function importJSON(text: string, mode: 'merge' | 'replace'): Promi
     const newSessions = b.sessions.filter((s) => !haveIds.has(s.id));
     await db.sessions.bulkPut(newSessions);
     addedSessions = newSessions.length;
-    const addMissing = async <T extends { id: string }>(table: typeof db.presets | typeof db.boards | typeof db.tasks | typeof db.stickers, rows: T[]) => {
+    const addMissing = async <T extends { id: string }>(table: typeof db.presets | typeof db.boards | typeof db.tasks | typeof db.folders | typeof db.notes | typeof db.stickers, rows: T[]) => {
       const have = new Set(await table.toCollection().primaryKeys());
       await (table as unknown as { bulkPut(r: T[]): Promise<unknown> }).bulkPut(rows.filter((r) => !have.has(r.id)));
     };
     await addMissing(db.presets, b.presets);
     await addMissing(db.boards, b.boards);
     await addMissing(db.tasks, b.tasks);
+    await addMissing(db.folders, b.folders);
+    await addMissing(db.notes, b.notes);
     await addMissing(db.stickers, b.stickers);
     return { sessions: addedSessions, events: addedEvents };
   });

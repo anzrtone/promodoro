@@ -8,6 +8,7 @@ import { loadPlatform } from '@/platform';
 import { engine } from '@/hooks/usePromodoroEngine';
 import { startAutoBackupLoop } from '@/features/autoBackup';
 import { unlockAudio } from '@/audio/engine';
+import { syncSurvey } from '@/features/survey';
 
 async function boot() {
   await loadPlatform();
@@ -15,6 +16,7 @@ async function boot() {
   void requestPersistence();
   await engine.start();
   startAutoBackupLoop();
+  void syncSurvey();
   if (import.meta.env.DEV) {
     const { seedDemoData } = await import('@/dev/seed');
     Object.assign(window, { promodoroSeed: seedDemoData });

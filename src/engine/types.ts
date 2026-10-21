@@ -186,6 +186,8 @@ export interface Preset {
   longMin: number;
   rounds: number;
   builtin?: boolean;
+  /** The "use once" slot from the Focus screen: shown only while it's the active preset. */
+  once?: boolean;
   order: number;
 }
 
@@ -195,6 +197,19 @@ export interface Board {
   color: string;
   soundId?: string;
   archived?: boolean;
+  /** Folder (or subfolder) this subject sits in; none = loose. */
+  folderId?: string;
+  order: number;
+}
+
+/** Groups subjects. Two levels at most: a folder, and subfolders inside it. */
+export interface Folder {
+  id: string;
+  name: string;
+  color: string;
+  /** Parent folder; none = top level. A subfolder never has subfolders of its own. */
+  parentId?: string;
+  archived?: boolean;
   order: number;
 }
 
@@ -202,9 +217,22 @@ export interface Task {
   id: string;
   title: string;
   done: boolean;
+  /** A task belongs to a subject, a folder, or neither (a loose "today" task). */
   boardId?: string;
+  folderId?: string;
   createdAt: number;
   doneAt?: number;
+}
+
+export interface Note {
+  id: string;
+  title: string;
+  body: string;
+  boardId?: string;
+  folderId?: string;
+  createdAt: number;
+  updatedAt: number;
+  order: number;
 }
 
 export interface Sticker {

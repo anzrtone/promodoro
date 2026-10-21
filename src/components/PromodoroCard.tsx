@@ -3,19 +3,22 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, ChevronDown, Coffee, FastForward, Flame, History, MoreHorizontal, Pause, Play, Trash2, Volume2 } from 'lucide-react';
+import { Check, ChevronDown, Coffee, FastForward, Flame, History, MoreHorizontal, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { updateSettings, useSettings } from '@/db/settings';
 import { phaseLabel, isBreak } from '@/engine/cycle';
 import { formatClock, formatDuration, formatTimeOfDay, MINUTE } from '@/engine/time';
 import { lastSessionEnd } from '@/engine/timeline';
 import { nextAlarmAt } from '@/engine/timer';
-import type { ModeChoice, TimerSnapshot, TimerState } from '@/engine/types';
+import { groupSubjects } from '@/engine/folders';
+import type { ModeChoice, Preset, TimerSnapshot, TimerState } from '@/engine/types';
 import { usePromodoroEngine, engine } from '@/hooks/usePromodoroEngine';
 import { award } from '@/features/stickers';
+import { greeting } from '@/features/onboarding';
 import { SOUNDS, soundName } from '@/audio/catalog';
 import { unlockAudio } from '@/audio/engine';
 import { Pomo, POMO_LINES, type PomoMood } from './Pomo';
+import { PresetSheet, SubjectSheet, useLongPress } from './QuickAdd';
 import { cx, Segmented, Sheet, Stepper } from './ui';
 
 const MODE_OPTIONS: Array<{ value: ModeChoice; label: string; title: string }> = [
@@ -33,6 +36,8 @@ function moodFor(t: TimerState | undefined, snap: TimerSnapshot | null, cheering
   return 'focused';
 }
 
+let greetedThisLaunch = false;
+
 export function PromodoroCard({ compact = false }: { compact?: boolean }) {
   const { primary, primarySnap, now, cheerAt, ringing } = usePromodoroEngine();
   const settings = useSettings();
@@ -44,8 +49,15 @@ export function PromodoroCard({ compact = false }: { compact?: boolean }) {
 
   const say = (m: PomoMood) => {
     const lines = POMO_LINES[m];
-    setLine(lines[Math.floor(Math.random() * lines.length)]);
+    setLine(lines[Math.floor(Math.random() * lines.length)].replace('{name}', settings.profile.name.trim() || 'friend'));
   };
+  // Say hello (by name) once per launch, when nothing's running yet.
+  useEffect(() => {
+    if (greetedThisLaunch || !settings.onboarded || compact) return;
+    greetedThisLaunch = true;
+    if (settings.pomoTalks && !primary) setLine(greeting(settings.profile.name));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.onboarded]);
   useEffect(() => {
     if (!line) return;
     const t = setTimeout(() => setLine(null), 3800);
@@ -85,7 +97,7 @@ export function PromodoroCard({ compact = false }: { compact?: boolean }) {
           />
           {line && !compact && (
             <div className="absolute left-full top-2 z-10 ml-1 w-max max-w-[170px] max-sm:left-[62%] max-sm:top-[54%] max-sm:ml-0 max-sm:max-w-[132px]">
-              <div className="rounded-note border border-rule bg-sheet px-3 py-2 font-hand text-[22px] leading-tight shadow-note animate-pop max-sm:text-[18px]">{line}</div>
+              <div className="rounded-note border border-rule bg-sheet px-3 py-2 font-hand text-[19px] leading-tight shadow-note animate-pop max-sm:text-[16px]">{line}</div>
             </div>
           )}
         </div>
@@ -113,7 +125,7 @@ function PhaseRow({ t, compact }: { t: TimerState; compact: boolean }) {
           {board.name}
         </span>
       )}
-      {t.label && t.label !== board?.name && !compact && <span className="font-hand text-2xl">{t.label}</span>}
+      {t.label && t.label !== board?.name && !compact && <span className="font-hand text-[20px]">{t.label}</span>}
       {t.auto && !compact && settings.autoAdvance && <span className="text-xs text-ink/50">auto-started</span>}
     </div>
   );
@@ -156,7 +168,7 @@ function RunningPanel({ t, snap, compact, ringing }: { t: TimerState; snap: Time
         >
           {big}
         </div>
-        <div className={cx('font-hand text-ink/70', compact ? 'text-lg' : 'mt-1 text-[24px]')}>{sub}</div>
+        <div className={cx('font-hand text-ink/70', compact ? 'text-base' : 'mt-1 text-[20px]')}>{sub}</div>
         {recovered && !compact && <div className="text-xs text-ink/50">{recovered}</div>}
       </div>
 
@@ -327,23 +339,52 @@ export function SoundSelect({ value, onChange, disabled, allowDefault }: { value
 
 /* ------------------------------------------------------------------ */
 
+/** "Deep Study 50/10" → "Deep Study" (names often repeat the numbers). */
+const presetName = (p: Preset) => p.name.replace(/\s*\d+\s*\/\s*\d+$/, '');
+
+/**
+ * The idle screen: just the clock, one summary line and Start.
+ * Tap the clock for the next preset, drag/scroll it to fine-tune; everything else lives in the setup sheet.
+ */
 function StartPanel({ compact }: { compact: boolean }) {
   const settings = useSettings();
-  const presets = useLiveQuery(() => db.presets.orderBy('order').toArray(), [], []);
+  const allPresets = useLiveQuery(() => db.presets.orderBy('order').toArray(), [], []);
+  // The one-off slot only shows while it's the one in use.
+  const presets = allPresets.filter((p) => !p.once || p.id === settings.presetId);
   const boards = useLiveQuery(() => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
+  const folders = useLiveQuery(() => db.folders.orderBy('order').filter((f) => !f.archived).toArray(), [], []);
   const tasks = useLiveQuery(() => db.tasks.filter((t) => !t.done).toArray(), [], []);
   const preset = presets.find((p) => p.id === settings.presetId) ?? presets[0];
   const [minutes, setMinutes] = useState<number | null>(null);
   const [taskId, setTaskId] = useState<string | undefined>();
+  const [setup, setSetup] = useState(false);
+  const [presetSheet, setPresetSheet] = useState<{ editing?: Preset } | null>(null);
+  const [subjectSheet, setSubjectSheet] = useState(false);
+  const groups = groupSubjects(boards, folders);
+  // Tasks for the selected subject come first in the picker.
+  const subjectTasks = settings.boardId ? tasks.filter((t) => t.boardId === settings.boardId) : [];
+  const otherTasks = tasks.filter((t) => !subjectTasks.includes(t));
   const mins = minutes ?? preset?.focusMin ?? 25;
   const mode = settings.defaultMode;
+  const board = boards.find((b) => b.id === settings.boardId);
+  const task = tasks.find((x) => x.id === taskId);
 
   const start = (backdateMin?: number) => {
     unlockAudio();
-    void engine.startFocus({ minutes: mins, mode, backdateMin, taskId, label: tasks.find((x) => x.id === taskId)?.title });
+    void engine.startFocus({ minutes: mins, mode, backdateMin, taskId, label: task?.title });
     setMinutes(null);
     setTaskId(undefined);
     if (backdateMin) void award('found-time');
+  };
+
+  const pickPreset = (p: Preset) => {
+    setMinutes(null);
+    void updateSettings({ presetId: p.id, round: 1 });
+  };
+  const nextPreset = () => {
+    if (!presets.length) return;
+    const i = presets.findIndex((p) => p.id === preset?.id);
+    pickPreset(presets[(i + 1) % presets.length]);
   };
 
   if (compact)
@@ -353,101 +394,242 @@ function StartPanel({ compact }: { compact: boolean }) {
       </button>
     );
 
+  const timerLabel = mode === 'countup' ? 'Count up' : minutes !== null ? `${mins} min` : preset ? `${presetName(preset)} ${preset.focusMin}/${preset.shortMin}` : `${mins} min`;
+
   return (
     <>
-      <Segmented value={mode} options={MODE_OPTIONS} onChange={(v) => void updateSettings({ defaultMode: v })} size="sm" />
+      <ClockDial
+        minutes={mins}
+        open={mode === 'countup'}
+        onTap={mode === 'countup' ? () => setSetup(true) : nextPreset}
+        onAdjust={(m) => setMinutes(Math.min(600, Math.max(1, m)))}
+      />
 
-      <div className="flex items-center gap-4">
-        {mode !== 'countup' && (
-          <button className="pill h-11 w-11 border border-rule bg-sheet text-xl" onClick={() => setMinutes(Math.max(1, mins - 5))} aria-label="5 minutes less">
-            −
-          </button>
+      <button className="-mt-1 flex max-w-full items-center gap-2 rounded-full px-3 py-1 text-[15px] text-ink/65 hover:bg-ink/5" onClick={() => setSetup(true)} title="Timer, subject & task" data-tour="setup">
+        <span key={timerLabel} className="animate-pop truncate font-semibold text-ink/80">
+          {timerLabel}
+        </span>
+        <span className="text-ink/30">·</span>
+        {board ? (
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: board.color }} />
+            {board.name}
+          </span>
+        ) : (
+          <span className="text-ink/45">no subject</span>
         )}
-        <div className="text-center">
-          <div className="font-display text-[clamp(64px,17vw,104px)] font-semibold leading-none tabular">{mode === 'countup' ? '00:00' : formatClock(mins * MINUTE)}</div>
-          <div className="font-hand text-[22px] text-ink/60">
-            {mode === 'countup' ? 'open-ended: stop whenever' : mode === 'overtime' ? 'chimes at zero, keeps counting your flow' : 'stops at zero'}
-          </div>
-        </div>
-        {mode !== 'countup' && (
-          <button className="pill h-11 w-11 border border-rule bg-sheet text-xl" onClick={() => setMinutes(Math.min(600, mins + 5))} aria-label="5 minutes more">
-            +
-          </button>
+        {task && (
+          <>
+            <span className="text-ink/30">·</span>
+            <span className="max-w-[9rem] truncate">✎ {task.title}</span>
+          </>
         )}
-      </div>
-
-      <div className="no-scrollbar -mx-2 flex max-w-full gap-2 overflow-x-auto px-2 pb-1">
-        {presets.map((p) => (
-          <button
-            key={p.id}
-            className={cx('chip shrink-0', p.id === settings.presetId && minutes === null && 'chip-on')}
-            onClick={() => {
-              setMinutes(null);
-              void updateSettings({ presetId: p.id, round: 1 });
-            }}
-          >
-            {p.focusMin}/{p.shortMin}
-            <span className="text-ink/50">· {p.name.replace(/\s*\d+\s*\/\s*\d+$/, '')}</span>
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap justify-center gap-2">
-        <button className={cx('chip', !settings.boardId && 'chip-on')} onClick={() => void updateSettings({ boardId: null })}>
-          No subject
-        </button>
-        {boards.map((b) => (
-          <button key={b.id} className={cx('chip', settings.boardId === b.id && 'chip-on')} onClick={() => void updateSettings({ boardId: b.id })}>
-            <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
-            {b.name}
-          </button>
-        ))}
-      </div>
-
-      {tasks.length > 0 && (
-        <div className="relative w-full max-w-xs">
-          <select className="field appearance-none pr-8 font-hand !text-[22px] !leading-6" value={taskId ?? ''} onChange={(e) => setTaskId(e.target.value || undefined)}>
-            <option value="">✎ link a task (optional)</option>
-            {tasks.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.title}
-              </option>
-            ))}
-          </select>
-          <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3.5 text-ink/50" />
-        </div>
-      )}
-
-      <button className="btn-primary !px-8 !py-4 !text-lg" onClick={() => start()}>
-        <Play size={20} fill="currentColor" /> Start focus{mode === 'countup' ? '' : ` (${mins}m)`}
+        <ChevronDown size={15} className="shrink-0 text-ink/40" />
       </button>
 
-      <ForgotChips onPick={start} />
+      <button className="btn-primary !px-8 !py-4 !text-lg" onClick={() => start()} data-tour="start">
+        <Play size={20} fill="currentColor" /> Start focus
+      </button>
+
+      <ForgotLink onPick={start} />
+
+      <Sheet open={setup} onClose={() => setSetup(false)} title="Set up this session">
+        <div className="flex flex-col gap-5">
+          <section className="flex flex-col gap-2">
+            <div className="label">Timer</div>
+            <Segmented value={mode} options={MODE_OPTIONS} onChange={(v) => void updateSettings({ defaultMode: v })} size="sm" />
+            <div className="flex flex-wrap gap-2">
+              {presets.map((p) => (
+                <PresetChip key={p.id} preset={p} on={p.id === settings.presetId && minutes === null} onPick={() => pickPreset(p)} onEdit={() => setPresetSheet({ editing: p })} />
+              ))}
+              <button className="chip !border-dashed text-ink/60" onClick={() => setPresetSheet({})} title="Custom focus & break lengths">
+                <Plus size={13} /> Custom
+              </button>
+            </div>
+          </section>
+
+          <section className="flex flex-col gap-2">
+            <div className="label">Subject</div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button className={cx('chip', !settings.boardId && 'chip-on')} onClick={() => void updateSettings({ boardId: null })}>
+                None
+              </button>
+              {groups.map((g) => (
+                // Each group wraps as a unit so a folder label never ends up alone at the end of a line.
+                <span key={g.label ?? ''} className="inline-flex flex-wrap items-center gap-2">
+                  {g.label && <span className="ml-1 font-hand text-[16px] text-ink/50">{g.label}:</span>}
+                  {g.boards.map((b) => (
+                    <button key={b.id} className={cx('chip', settings.boardId === b.id && 'chip-on')} onClick={() => void updateSettings({ boardId: b.id })}>
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: b.color }} />
+                      {b.name}
+                    </button>
+                  ))}
+                </span>
+              ))}
+              <button className="chip !border-dashed text-ink/60" onClick={() => setSubjectSheet(true)} title="Add a subject">
+                <Plus size={13} /> New
+              </button>
+            </div>
+          </section>
+
+          {tasks.length > 0 && (
+            <section className="flex flex-col gap-2">
+              <div className="label">Task</div>
+              <div className="relative">
+                <select className="field appearance-none pr-8" value={taskId ?? ''} onChange={(e) => setTaskId(e.target.value || undefined)}>
+                  <option value="">None (optional)</option>
+                  {subjectTasks.length > 0 ? (
+                    <>
+                      <optgroup label={board?.name ?? 'This subject'}>
+                        {subjectTasks.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.title}
+                          </option>
+                        ))}
+                      </optgroup>
+                      {otherTasks.length > 0 && (
+                        <optgroup label="Other tasks">
+                          {otherTasks.map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.title}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                    </>
+                  ) : (
+                    tasks.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.title}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-3 text-ink/50" />
+              </div>
+            </section>
+          )}
+
+          <button className="btn-primary self-center" onClick={() => setSetup(false)}>
+            <Check size={16} /> Done
+          </button>
+        </div>
+      </Sheet>
+
+      {/* Rendered after the setup sheet so they stack on top of it. */}
+      <PresetSheet open={!!presetSheet} editing={presetSheet?.editing} onClose={() => setPresetSheet(null)} />
+      <SubjectSheet open={subjectSheet} onClose={() => setSubjectSheet(false)} />
     </>
   );
 }
 
-/** "Forgot to start?" — one tap backdates the start. The fastest recovery there is. */
-function ForgotChips({ onPick }: { onPick: (min: number) => void }) {
+/** Pixels of vertical drag per minute when fine-tuning the clock. */
+const DRAG_PX_PER_MIN = 10;
+
+/**
+ * The big clock doubles as the timer picker: tap for the next preset,
+ * drag up/down (or scroll) to nudge the minutes.
+ */
+function ClockDial({ minutes, open, onTap, onAdjust }: { minutes: number; open: boolean; onTap: () => void; onAdjust: (m: number) => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const drag = useRef<{ y: number; from: number; moved: boolean } | null>(null);
+  const dragged = useRef(false);
+  const latest = useRef({ minutes, onAdjust, open });
+  latest.current = { minutes, onAdjust, open };
+
+  // React's onWheel is passive, so attach by hand to keep the page from scrolling under the dial.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      const l = latest.current;
+      if (l.open || e.deltaY === 0) return;
+      e.preventDefault();
+      l.onAdjust(l.minutes + (e.deltaY < 0 ? 5 : -5));
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
+
+  return (
+    <button
+      ref={ref}
+      className="flex select-none flex-col items-center rounded-note px-3 outline-none focus-visible:ring-2 focus-visible:ring-ink/20"
+      style={{ touchAction: open ? undefined : 'none' }}
+      title={open ? 'Open-ended — tap to change' : 'Tap for the next timer · drag or scroll to adjust'}
+      aria-label={open ? 'Open-ended timer. Change timer' : `${minutes} minutes. Next timer`}
+      onPointerDown={(e) => {
+        dragged.current = false;
+        if (open) return;
+        drag.current = { y: e.clientY, from: minutes, moved: false };
+        e.currentTarget.setPointerCapture(e.pointerId);
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current;
+        if (!d) return;
+        const dy = d.y - e.clientY;
+        if (!d.moved && Math.abs(dy) < 6) return;
+        d.moved = dragged.current = true;
+        onAdjust(d.from + Math.round(dy / DRAG_PX_PER_MIN));
+      }}
+      onPointerUp={() => (drag.current = null)}
+      onPointerCancel={() => (drag.current = null)}
+      onKeyDown={(e) => {
+        if (open) return;
+        if (e.key === 'ArrowUp') onAdjust(minutes + 1);
+        else if (e.key === 'ArrowDown') onAdjust(minutes - 1);
+        else return;
+        e.preventDefault();
+      }}
+      onClick={() => !dragged.current && onTap()}
+    >
+      <span className="font-display text-[clamp(64px,17vw,104px)] font-semibold leading-none tabular">{open ? '00:00' : formatClock(minutes * MINUTE)}</span>
+    </button>
+  );
+}
+
+function PresetChip({ preset: p, on, onPick, onEdit }: { preset: Preset; on: boolean; onPick: () => void; onEdit: () => void }) {
+  const press = useLongPress(onEdit);
+  return (
+    <button
+      className={cx('chip shrink-0 select-none', on && 'chip-on')}
+      title="Right-click or hold to edit"
+      onContextMenu={press.onContextMenu}
+      onPointerDown={press.onPointerDown}
+      onPointerUp={press.onPointerUp}
+      onPointerLeave={press.onPointerLeave}
+      onClick={() => !press.wasLong() && onPick()}
+    >
+      {p.focusMin}/{p.shortMin}
+      <span className="text-ink/50">· {presetName(p)}</span>
+    </button>
+  );
+}
+
+/** "Forgot to start?" — a quiet link that unfolds into one-tap backdates. */
+function ForgotLink({ onPick }: { onPick: (min: number) => void }) {
+  const [open, setOpen] = useState(false);
   const last = useLiveQuery(async () => lastSessionEnd(await db.sessions.where('end').above(Date.now() - 6 * 3600_000).toArray()), []);
   const sinceMin = useMemo(() => (last ? Math.round((Date.now() - last.end) / MINUTE) : 0), [last]);
   return (
     <div className="flex flex-col items-center gap-1.5">
-      <span className="flex items-center gap-1 font-hand text-[21px] text-ink/55">
-        <History size={14} /> forgot to start? I started…
-      </span>
-      <div className="flex flex-wrap justify-center gap-2">
-        {[10, 20, 30].map((m) => (
-          <button key={m} className="chip" onClick={() => onPick(m)}>
-            {m} min ago
-          </button>
-        ))}
-        {last && sinceMin >= 3 && sinceMin <= 180 && (
-          <button className="chip" onClick={() => onPick(sinceMin)} title="Backdate to the end of your last session">
-            when my last session ended ({formatTimeOfDay(last.end)})
-          </button>
-        )}
-      </div>
+      <button className="flex items-center gap-1 font-hand text-[17px] text-ink/45 hover:text-ink/70" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <History size={14} /> {open ? 'I started…' : 'forgot to start?'}
+      </button>
+      {open && (
+        <div className="flex animate-pop flex-wrap justify-center gap-2">
+          {[10, 20, 30].map((m) => (
+            <button key={m} className="chip" onClick={() => onPick(m)}>
+              {m} min ago
+            </button>
+          ))}
+          {last && sinceMin >= 3 && sinceMin <= 180 && (
+            <button className="chip" onClick={() => onPick(sinceMin)} title="Backdate to the end of your last session">
+              at {formatTimeOfDay(last.end)}, when my last session ended
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -31,7 +31,7 @@ function css(name: string) {
 }
 
 export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Promise<void> {
-  await Promise.all(['700 64px Caveat', '500 40px Caveat', '600 48px Fredoka', '700 28px Nunito'].map((f) => document.fonts.load(f)));
+  await Promise.all(['400 64px "Patrick Hand"', '600 48px Fredoka', '700 28px Nunito'].map((f) => document.fonts.load(f)));
   const from = dayStart(day);
   const sessions: Session[] = (await db.sessions.where('day').equals(day).toArray()).filter((s) => !s.deleted).sort((a, b) => a.start - b.start);
   const stickers = (await db.stickers.where('earnedAt').between(from, from + DAY).toArray()).slice(0, 3);
@@ -70,7 +70,7 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
 
   // header
   c.fillStyle = css('tomato');
-  c.font = '700 84px Caveat';
+  c.font = '400 72px "Patrick Hand"';
   const title = new Date(from + HOUR * 12).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
   c.fillText(clip(c, title, W - 150 - 330), 150, 130);
   c.fillStyle = ink;
@@ -79,7 +79,7 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
   c.fillText(headline, 150, 210);
   const headW = c.measureText(headline).width;
   if (overtime > 0) {
-    c.font = '500 44px Caveat';
+    c.font = '400 38px "Patrick Hand"';
     c.fillStyle = '#C9A227';
     c.fillText(`+${formatDuration(overtime)} flow ✦`, 150 + headW + 28, 205);
   }
@@ -117,7 +117,7 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
     c.font = '700 26px Nunito';
     c.fillText(s.bulk ? 'lump' : formatTimeOfDay(s.start), 150, y);
     c.globalAlpha = 1;
-    c.font = '500 46px Caveat';
+    c.font = '400 40px "Patrick Hand"';
     const label = `${s.phase === 'focus' ? '✔' : '☕'} ${s.label ?? (s.phase === 'focus' ? 'focus' : 'break')}${s.note ? ` — ${s.note}` : ''}`;
     c.fillText(clip(c, label, 640), 290, y);
     c.font = '600 34px Fredoka';
@@ -126,7 +126,7 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
     y += 64;
   }
   if (focus.length > 13) {
-    c.font = '500 40px Caveat';
+    c.font = '400 34px "Patrick Hand"';
     c.fillText(`…and ${focus.length - 12} more`, 290, y);
   }
 

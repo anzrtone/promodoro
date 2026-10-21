@@ -313,7 +313,7 @@ function PomoSvg({ mood, size = 160, accessory = 'none', progress = 0, className
         </g>
       )}
       {mood === 'sleepy' && (
-        <g fill={INK} fontFamily="Caveat, cursive" fontWeight={700} opacity={0.55}>
+        <g fill={INK} fontFamily="'Patrick Hand', cursive" fontWeight={400} opacity={0.55}>
           <text x={150} y={62} fontSize={18} className="animate-floatUp" style={{ animationIterationCount: 'infinite' }}>z</text>
           <text x={162} y={46} fontSize={24} className="animate-floatUp" style={{ animationIterationCount: 'infinite', animationDelay: '0.8s' }}>Z</text>
         </g>
@@ -334,14 +334,14 @@ function PomoSvg({ mood, size = 160, accessory = 'none', progress = 0, className
 
 export const Pomo = memo(PomoSvg);
 
-/** Gentle, never-shaming lines Pomo says. */
+/** Gentle, never-shaming lines Pomo says. `{name}` becomes the user's name (or "friend"). */
 export const POMO_LINES: Record<PomoMood, string[]> = {
-  happy: ['Ready when you are!', 'One tap is all it takes.', 'Hi! Want to start something small?', 'Even five minutes counts.'],
+  happy: ['Ready when you are, {name}!', 'One tap is all it takes.', 'Hi! Want to start something small?', 'Even five minutes counts.'],
   focused: ["You've got this.", "I'm right here with you.", 'Steady and cozy.', "I'll keep watch on the clock."],
   flow: ["Ooh, flow state! I'll keep counting.", 'Every extra minute is saved.', 'No need to stop if you don’t want to!'],
   sleepy: ['Stretch, sip, breathe…', 'Rest is part of the work.', 'zzz… (I’ll wake you)'],
-  cheering: ['You did it!', 'That counts! ✨', 'Look at you go!'],
+  cheering: ['You did it, {name}!', 'That counts! ✨', 'Look at you go!'],
   puzzled: ['Taking a pause? That’s fine.', 'Hmm, where were we?', 'Forgot to start me? We can fix that!'],
   frustrated: ['Hey! That tickles!', 'I am a very serious timer.', 'Okay okay, I’m awake!'],
-  shy: ['Oh! Hi again.', 'Welcome back. I missed you.'],
+  shy: ['Oh! Hi again.', 'Welcome back, {name}. I missed you.'],
 };

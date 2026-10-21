@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { BarChart3, CalendarClock, Maximize2, Settings, Sticker, Timer } from 'lucide-react';
+import { BarChart3, CalendarClock, FolderOpen, Maximize2, Settings, Sticker, Timer } from 'lucide-react';
 import { setAmbient } from '@/audio/engine';
 import { db } from '@/db/schema';
-import { useSettings } from '@/db/settings';
+import { useSettings, useStoredSettings } from '@/db/settings';
 import { isBreak } from '@/engine/cycle';
 import { isSupporter } from '@/features/license';
 import { navigate, useNav, type Tab } from '@/features/nav';
@@ -17,10 +17,14 @@ import { FocusScreen } from '@/screens/FocusScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 import { StatsScreen } from '@/screens/StatsScreen';
 import { StickerScreen } from '@/screens/StickerScreen';
+import { SubjectsScreen } from '@/screens/SubjectsScreen';
+import { OnboardingScreen } from '@/screens/OnboardingScreen';
+import { TourOverlay } from '@/components/TourOverlay';
 import { TimelineScreen } from '@/screens/TimelineScreen';
 
 const TABS: Array<{ id: Tab; label: string; icon: typeof Timer }> = [
   { id: 'focus', label: 'Focus', icon: Timer },
+  { id: 'subjects', label: 'Subjects', icon: FolderOpen },
   { id: 'timeline', label: 'Timeline', icon: CalendarClock },
   { id: 'stats', label: 'Stats', icon: BarChart3 },
   { id: 'stickers', label: 'Stickers', icon: Sticker },
@@ -30,6 +34,7 @@ const TABS: Array<{ id: Tab; label: string; icon: typeof Timer }> = [
 export function App() {
   const { tab } = useNav();
   const settings = useSettings();
+  const welcome = useWelcome();
   const [mini, setMini] = useState(false);
   useTheme(settings.theme, settings.license);
   useAmbientAutoplay();
@@ -69,7 +74,7 @@ export function App() {
 
   if (mini) return <MiniMode onExpand={() => window.dispatchEvent(new CustomEvent('promodoro:mini', { detail: false }))} />;
 
-  const Screen = { focus: FocusScreen, timeline: TimelineScreen, stats: StatsScreen, stickers: StickerScreen, settings: SettingsScreen }[tab];
+  const Screen = { focus: FocusScreen, subjects: SubjectsScreen, timeline: TimelineScreen, stats: StatsScreen, stickers: StickerScreen, settings: SettingsScreen }[tab];
 
   return (
     <div className="flex h-full">
@@ -77,12 +82,13 @@ export function App() {
       <nav className="hidden w-[184px] shrink-0 flex-col gap-1 border-r border-rule bg-paper/60 px-3 py-5 md:flex">
         <div className="mb-5 px-2">
           <div className="font-display text-2xl font-semibold text-tomato">Promodoro</div>
-          <div className="font-hand text-[19px] text-ink/55">focus at your own pace</div>
+          <div className="font-hand text-[16px] text-ink/55">focus at your own pace</div>
         </div>
         {TABS.map((t) => (
           <button
             key={t.id}
             onClick={() => navigate(t.id)}
+            data-tour={t.id}
             className={cx(
               'pill relative !justify-start gap-3 px-3 py-2.5 text-[15px]',
               tab === t.id ? 'bg-halo text-ink shadow-pill' : 'text-ink/65 hover:bg-sheet hover:text-ink',
@@ -103,7 +109,7 @@ export function App() {
       {/* Android / narrow: bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-paper/95 backdrop-blur safe-pb md:hidden">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => navigate(t.id)} className={cx('relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold', tab === t.id ? 'text-tomato' : 'text-ink/55')}>
+          <button key={t.id} data-tour={t.id} onClick={() => navigate(t.id)} className={cx('relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold', tab === t.id ? 'text-tomato' : 'text-ink/55')}>
             <span className={cx('rounded-full px-4 py-1', tab === t.id && 'bg-halo text-ink')}>
               <t.icon size={20} />
             </span>
@@ -114,8 +120,18 @@ export function App() {
       </nav>
 
       <Toasts />
+      <TourOverlay />
+      {welcome && <OnboardingScreen mode={welcome.mode} settings={welcome.settings} />}
     </div>
   );
+}
+
+/** First run (or first launch since onboarding existed): which welcome notebook to show, if any. */
+function useWelcome() {
+  const stored = useStoredSettings();
+  const sessions = useLiveQuery(() => db.sessions.count(), []);
+  if (!stored || stored.onboarded || sessions === undefined) return null;
+  return { mode: sessions > 0 ? ('returning' as const) : ('full' as const), settings: stored };
 }
 
 function MiniMode({ onExpand }: { onExpand: () => void }) {

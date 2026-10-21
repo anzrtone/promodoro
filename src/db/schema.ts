@@ -7,10 +7,10 @@
  *  timers   live projection of timers that haven't ended yet (rebuildable from events)
  *  sessions finished sessions (timer projections + manual + imported)
  *  daily    pre-computed per-day summaries so month/year views stay fast
- *  presets / boards / tasks / stickers / settings
+ *  presets / boards (subjects) / folders / tasks / notes / stickers / settings
  */
 import Dexie, { type Table } from 'dexie';
-import type { AnyEvent, Board, DailySummary, Preset, Session, Sticker, Task, TimerState } from '@/engine/types';
+import type { AnyEvent, Board, DailySummary, Folder, Note, Preset, Session, Sticker, Task, TimerState } from '@/engine/types';
 
 export interface KV<T = unknown> {
   key: string;
@@ -25,6 +25,8 @@ export class PromodoroDB extends Dexie {
   presets!: Table<Preset, string>;
   boards!: Table<Board, string>;
   tasks!: Table<Task, string>;
+  folders!: Table<Folder, string>;
+  notes!: Table<Note, string>;
   stickers!: Table<Sticker, string>;
   settings!: Table<KV, string>;
 
@@ -40,6 +42,14 @@ export class PromodoroDB extends Dexie {
       tasks: 'id, createdAt, boardId',
       stickers: 'id, earnedAt',
       settings: 'key',
+    });
+    // v2: folders for subjects; tasks and notes can live in a subject or folder.
+    // Existing subjects have no folderId, so they simply show up as loose.
+    this.version(2).stores({
+      boards: 'id, order, folderId',
+      tasks: 'id, createdAt, boardId, folderId',
+      folders: 'id, order, parentId',
+      notes: 'id, updatedAt, boardId, folderId',
     });
   }
 }

@@ -44,6 +44,7 @@ export const STICKERS: StickerDef[] = [
   { id: 'hundred-hours', title: '100 hours', blurb: 'One hundred hours of focus, all yours.', hint: 'Reach 100 hours total', art: 'smitten', tilt: -4 },
   { id: 'moving-in', title: 'Moving in', blurb: 'You brought your history along. Make yourself at home.', hint: 'Import sessions from another app', art: 'content', tilt: 3 },
   { id: 'backup-buddy', title: 'Backup buddy', blurb: 'Automatic backups on. Your notebook is safe.', hint: 'Turn on automatic backups', art: 'peek', tilt: -2 },
+  { id: 'nice-to-meet-you', title: 'Nice to meet you', blurb: 'You and Pomo said hello. The first page of a cozy notebook.', hint: 'Finish the welcome notebook', art: 'shy', tilt: 4 },
   { id: 'pomo-poke', title: 'Hey!', blurb: 'Pomo has feelings too, you know.', hint: 'A secret…', art: 'grumpy', tilt: 6 },
 ];
 

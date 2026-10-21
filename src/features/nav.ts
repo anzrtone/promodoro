@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 
-export type Tab = 'focus' | 'timeline' | 'stats' | 'stickers' | 'settings';
+export type Tab = 'focus' | 'subjects' | 'timeline' | 'stats' | 'stickers' | 'settings';
 
 let state: { tab: Tab; day?: string; settingsSection?: string } = { tab: 'focus' };
 const subs = new Set<() => void>();

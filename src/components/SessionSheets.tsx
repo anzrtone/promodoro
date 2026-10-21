@@ -59,7 +59,7 @@ export function WrapSheet() {
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5">
             {rows.map(([k, v]) => (
               <div key={k} className="contents">
-                <dt className="font-hand text-[22px] text-ink/60">{k}</dt>
+                <dt className="font-hand text-[19px] text-ink/60">{k}</dt>
                 <dd className="font-display text-lg font-semibold">{v}</dd>
               </div>
             ))}
@@ -70,7 +70,7 @@ export function WrapSheet() {
       {focus && (
         <div className="mt-4 space-y-2 rounded-note border border-rule bg-sheet p-3 bg-lined">
           <input
-            className="w-full bg-transparent font-hand text-[24px] outline-none placeholder:text-ink/35"
+            className="w-full bg-transparent font-hand text-[20px] outline-none placeholder:text-ink/35"
             placeholder="margin note: what did you work on?"
             value={note}
             onChange={(e) => setNote(e.target.value)}
@@ -158,7 +158,7 @@ export function Notices() {
     <div className="sticky-note relative mx-auto flex w-full max-w-[560px] items-start gap-3 p-3 animate-pop">
       <Pomo mood="puzzled" size={56} />
       <div className="flex-1">
-        <p className="font-hand text-[22px] leading-6">
+        <p className="font-hand text-[19px] leading-6">
           {n.label ?? (n.phase === 'focus' ? 'Your focus' : 'Your break')} {n.stopped ? 'finished' : 'reached its goal'} {formatAgo(away)}, while you were away.
         </p>
         <p className="text-sm text-ink/60">

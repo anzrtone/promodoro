@@ -29,7 +29,7 @@ export default {
       fontFamily: {
         display: ['Fredoka', 'Nunito', 'system-ui', 'sans-serif'],
         sans: ['Nunito', 'system-ui', 'sans-serif'],
-        hand: ['Caveat', 'Comic Sans MS', 'cursive'],
+        hand: ['"Patrick Hand"', 'Comic Sans MS', 'cursive'],
       },
       borderRadius: {
         note: '14px',
@@ -54,6 +54,9 @@ export default {
         wiggle: { '0%,100%': { transform: 'rotate(0)' }, '25%': { transform: 'rotate(-6deg)' }, '75%': { transform: 'rotate(6deg)' } },
         pop: { '0%': { transform: 'scale(0.6)', opacity: '0' }, '70%': { transform: 'scale(1.08)', opacity: '1' }, '100%': { transform: 'scale(1)' } },
         breathe: { '0%,100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.025)' } },
+        pageIn: { '0%': { opacity: '0', transform: 'translateX(18px) rotate(0.6deg)' }, '100%': { opacity: '1', transform: 'none' } },
+        // A dropped item settles into its new spot with a brief warm glow.
+        land: { '0%': { transform: 'scale(0.94)', backgroundColor: 'rgb(var(--pm-halo))' }, '45%': { transform: 'scale(1.02)' }, '100%': { transform: 'scale(1)' } },
       },
       animation: {
         bob: 'bob 3.2s ease-in-out infinite',
@@ -64,6 +67,8 @@ export default {
         wiggle: 'wiggle 0.5s ease-in-out',
         pop: 'pop 0.45s cubic-bezier(.2,.9,.3,1.3) both',
         breathe: 'breathe 6s ease-in-out infinite',
+        pageIn: 'pageIn 0.35s ease-out both',
+        land: 'land 0.7s cubic-bezier(.2,.9,.3,1.2)',
       },
     },
   },

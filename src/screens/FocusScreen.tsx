@@ -32,7 +32,7 @@ function LastSessionLine() {
   if (primary || !last) return <div className="h-6" />;
   const ago = now - last.end;
   return (
-    <p className="flex flex-wrap items-baseline justify-center gap-x-2 text-center font-hand text-[23px] text-ink/60">
+    <p className="flex flex-wrap items-baseline justify-center gap-x-2 text-center font-hand text-[20px] text-ink/60">
       <span>
         last session ended <b className="text-ink/80">{formatAgo(ago)}</b>
         {ago < DAY && ` (${formatTimeOfDay(last.end)})`}
@@ -58,7 +58,7 @@ function BackupReminder() {
     <div className="sticky-note flex items-start gap-3 p-3">
       <HardDriveDownload className="mt-1 shrink-0 text-ink/50" size={20} />
       <div className="flex-1">
-        <p className="font-hand text-[22px] leading-6">Your notebook lives only on this device. Want a safety copy?</p>
+        <p className="font-hand text-[19px] leading-6">Your notebook lives only on this device. Want a safety copy?</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button className="chip chip-on" onClick={() => navigate('settings', { settingsSection: 'data' })}>
             Turn on auto-backup

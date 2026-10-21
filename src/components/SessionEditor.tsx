@@ -84,7 +84,7 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
       <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">
-            <dt className="font-hand text-[21px] text-ink/55">{k}</dt>
+            <dt className="font-hand text-[18px] text-ink/55">{k}</dt>
             <dd className="font-display font-semibold">{v}</dd>
           </div>
         ))}
@@ -92,7 +92,7 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
       <div className="space-y-3">
         <input className="field" placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
         <BoardPicker value={boardId} onChange={setBoardId} />
-        <input className="field font-hand !text-[22px]" placeholder="margin note…" value={note} onChange={(e) => setNote(e.target.value)} />
+        <input className="field font-hand !text-[19px]" placeholder="margin note…" value={note} onChange={(e) => setNote(e.target.value)} />
         <Segmented<Mood | 'none'>
           size="sm"
           value={mood ?? 'none'}

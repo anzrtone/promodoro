@@ -1,18 +1,28 @@
-/** "Today's focus tasks" — a deliberately tiny task layer on a sticky note. */
+/**
+ * "Today's focus tasks" — a deliberately tiny task layer on a sticky note.
+ * Shows loose tasks, plus the open tasks of whichever subject is selected.
+ */
 import { useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { X } from 'lucide-react';
 import { db } from '@/db/schema';
+import { useSettings } from '@/db/settings';
 import { append } from '@/db/repo';
 import { DAY, uid } from '@/engine/time';
 import type { PendingEvent } from '@/engine/timer';
 import { cx } from './ui';
 
 export function TaskNote() {
+  const { boardId } = useSettings();
+  const subject = useLiveQuery(() => (boardId ? db.boards.get(boardId) : undefined), [boardId]);
   // Open tasks, plus ones finished in the last day so the ticks feel good.
   const tasks = useLiveQuery(
-    () => db.tasks.orderBy('createdAt').filter((t) => !t.done || (t.doneAt ?? 0) > Date.now() - DAY).toArray(),
-    [],
+    () =>
+      db.tasks
+        .orderBy('createdAt')
+        .filter((t) => (t.boardId ? t.boardId === boardId : !t.folderId) && (!t.done || (t.doneAt ?? 0) > Date.now() - DAY))
+        .toArray(),
+    [boardId],
     [],
   );
   const [text, setText] = useState('');
@@ -39,7 +49,8 @@ export function TaskNote() {
               >
                 {t.done && '✓'}
               </button>
-              <span className={cx('flex-1 truncate font-hand text-[24px] leading-none', t.done && 'text-ink/40 line-through decoration-tomato/70')}>{t.title}</span>
+              <span className={cx('flex-1 truncate font-hand text-[20px] leading-none', t.done && 'text-ink/40 line-through decoration-tomato/70')}>{t.title}</span>
+              {t.boardId && subject && <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: subject.color }} title={subject.name} />}
               <button className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-60" onClick={() => db.tasks.delete(t.id)} aria-label="Delete task">
                 <X size={14} className="text-ink/40" />
               </button>
@@ -48,7 +59,7 @@ export function TaskNote() {
           <li className="flex h-[34px] items-center gap-2">
             <span className="h-5 w-5 shrink-0 rounded-[6px] border-2 border-dashed border-ink/25" />
             <input
-              className="flex-1 bg-transparent font-hand text-[24px] leading-none outline-none placeholder:text-ink/30"
+              className="flex-1 bg-transparent font-hand text-[20px] leading-none outline-none placeholder:text-ink/30"
               placeholder="add a task…"
               value={text}
               onChange={(e) => setText(e.target.value)}
