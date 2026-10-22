@@ -38,6 +38,7 @@ export function TourOverlay() {
     let raf = 0;
     let el: HTMLElement | null = null;
     let last = '';
+    let stableCount = 0;
     const since = performance.now();
     // Follow the target through scrolling and resizes; only re-render when it actually moves.
     const track = () => {
@@ -48,14 +49,21 @@ export function TourOverlay() {
           raf = requestAnimationFrame(track);
           return;
         }
-        el.scrollIntoView({ block: el.offsetHeight > window.innerHeight * 0.55 ? 'start' : 'center', behavior: 'smooth' });
+        // Use 'instant' so the scroll completes synchronously before the first
+        // getBoundingClientRect() call — avoids the note bubble jumping mid-scroll.
+        el.scrollIntoView({ block: el.offsetHeight > window.innerHeight * 0.55 ? 'start' : 'center', behavior: 'instant' });
       }
       const r = el ? el.getBoundingClientRect() : null;
       const key = `${r?.left},${r?.top},${r?.width},${r?.height},${window.innerWidth},${window.innerHeight}`;
       if (key !== last) {
         last = key;
+        stableCount = 0;
         setBox({ rect: r, vw: window.innerWidth, vh: window.innerHeight });
-        setReady(true);
+        // Don't mark ready until the rect has been stable for two consecutive frames,
+        // giving layout a chance to fully settle after the scroll.
+      } else {
+        stableCount++;
+        if (stableCount >= 2) setReady(true);
       }
       raf = requestAnimationFrame(track);
     };

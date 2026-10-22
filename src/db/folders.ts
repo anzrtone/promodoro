@@ -84,14 +84,16 @@ export async function setFolderArchived(id: string, archived: boolean): Promise<
   });
 }
 
-/** Delete a subject. Past sessions keep their time (just without the label); its tasks & notes move to its folder. */
+/** Delete a subject and all sessions logged against it. Tasks and notes move to the parent folder. */
 export async function removeSubject(id: string): Promise<void> {
-  await db.transaction('rw', [db.boards, db.tasks, db.notes, db.settings], async () => {
+  await db.transaction('rw', [db.boards, db.tasks, db.notes, db.settings, db.sessions], async () => {
     const b = await db.boards.get(id);
     if (!b) return;
     const to = b.folderId ? { boardId: undefined, folderId: b.folderId } : { boardId: undefined };
     await db.tasks.where('boardId').equals(id).modify(to);
     await db.notes.where('boardId').equals(id).modify(to);
+    // Soft-delete every session logged against this subject so stats stay consistent.
+    await db.sessions.where('boardId').equals(id).modify({ deleted: true });
     await db.boards.delete(id);
     if ((await getSettings()).boardId === id) await updateSettings({ boardId: null });
   });

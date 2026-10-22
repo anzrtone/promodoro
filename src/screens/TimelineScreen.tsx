@@ -232,8 +232,10 @@ function DayView({ day }: { day: string }) {
             {gaps.map((g) => (
               <div
                 key={g.start}
-                className="absolute rounded-note border-2 border-dashed border-ink/25 bg-sheet/50 hover:bg-halo/30"
-                style={{ left: x(g.start), width: Math.max(4, x(g.end) - x(g.start)), top: TOP, height: LANE_H }}
+                className="absolute rounded-note border-2 border-dashed border-ink/25 bg-sheet/50 hover:bg-halo/30 active:bg-halo/40"
+                // touch-action:none lets pointer capture work on mobile without the browser
+                // stealing the gesture as a horizontal scroll (the parent has touch-pan-x).
+                style={{ left: x(g.start), width: Math.max(4, x(g.end) - x(g.start)), top: TOP - 6, height: LANE_H + 12, touchAction: 'none' }}
                 title={g.anchors.map((a) => a.text).join('\n') || 'Unlogged time'}
               >
                 {x(g.end) - x(g.start) > 70 && (
@@ -297,17 +299,15 @@ function DayView({ day }: { day: string }) {
             <span aria-hidden className={cx('text-ink/50 transition-transform duration-300', joggersOpen && 'rotate-180')}>▼</span>
           </button>
           <div
-            className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out motion-reduce:transition-none', joggersOpen ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
+            className={cx('overflow-hidden transition-[max-height,opacity] duration-300 ease-out motion-reduce:transition-none', joggersOpen ? 'max-h-64 opacity-100' : 'max-h-0 opacity-0')}
             aria-hidden={!joggersOpen}
           >
-            <div className="min-h-0 overflow-hidden">
-              <div className="mt-1 max-h-64 overflow-y-auto">
+            <div className="mt-1 max-h-64 overflow-y-auto">
                 {gaps.flatMap((g) => g.anchors).map((a) => (
                   <p key={a.ts} className="font-hand text-[18px] leading-6 text-ink/70">
                     · {a.text}
                   </p>
                 ))}
-              </div>
             </div>
           </div>
         </div>
@@ -321,7 +321,7 @@ function DayView({ day }: { day: string }) {
   );
 }
 
-const hourLabel = (h: number) => (h === 0 || h === 24 ? '12a' : h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`);
+const hourLabel = (h: number) => (h === 0 || h === 24 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`);
 
 function TimelineBlock({ b, left, width, top, h, board, onClick, zoom }: { b: Block; left: number; width: number; top: number; h: number; board?: Board; onClick: () => void; zoom: number }) {
   const s = b.session;

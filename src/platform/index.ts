@@ -23,6 +23,16 @@ export function platform(): Platform {
   return current;
 }
 
+/** Open a link outside the app (system browser or mail app). */
+export async function openLink(url: string): Promise<void> {
+  try {
+    if (current?.openExternal) return await current.openExternal(url);
+  } catch {
+    /* fall through to the browser route */
+  }
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 /** Test hook: inject a fake bridge. */
 export function __setPlatform(p: Platform) {
   current = p;

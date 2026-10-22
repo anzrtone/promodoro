@@ -1,7 +1,10 @@
 /** After-session wrap-up (summary, suggested break, margin note) and missed-alarm notices. */
 import { useEffect, useState } from 'react';
 import { Coffee, Play, X } from 'lucide-react';
-import { addManualSession } from '@/db/repo';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '@/db/schema';
+import { addManualSession, append } from '@/db/repo';
+import type { PendingEvent } from '@/engine/timer';
 import { useSettings } from '@/db/settings';
 import { formatAgo, formatClock, formatDuration, formatTimeOfDay, MINUTE } from '@/engine/time';
 import type { Mood } from '@/engine/types';
@@ -30,6 +33,17 @@ export function WrapSheet() {
     setNote(wrap.session.note ?? '');
     setMood(wrap.session.mood);
   }, [wrap?.session.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Same inference the focus screen uses for "working on": the picked task, else the subject's first open one.
+  const workedTask = useLiveQuery(async () => {
+    const sess = wrap?.session;
+    if (!sess) return undefined;
+    if (sess.taskId) return db.tasks.get(sess.taskId);
+    return db.tasks
+      .orderBy('createdAt')
+      .filter((x) => !x.done && (sess.boardId ? x.boardId === sess.boardId : !x.boardId && !x.folderId))
+      .first();
+  }, [wrap?.session.taskId, wrap?.session.boardId, wrap?.session.id]);
 
   if (!wrap) return null;
   const s = wrap.session;
@@ -68,7 +82,7 @@ export function WrapSheet() {
       </div>
 
       {focus && (
-        <div className="mt-4 space-y-2 rounded-note border border-rule bg-sheet p-3 bg-lined">
+        <div className="mt-4 space-y-2 rounded-note border border-rule bg-sheet p-3 bg-lined" style={{ backgroundPositionY: '4px' }}>
           <input
             className="w-full bg-transparent font-hand text-[20px] outline-none placeholder:text-ink/35"
             placeholder="margin note: what did you work on?"
@@ -85,6 +99,22 @@ export function WrapSheet() {
             ))}
           </div>
         </div>
+      )}
+
+      {focus && settings.showTasks && workedTask && (
+        <button
+          className="mt-3 flex w-full items-center gap-2 text-left"
+          onClick={() => void append([{ type: 'task.done', ts: Date.now(), data: { taskId: workedTask.id, done: !workedTask.done } } as PendingEvent])}
+          aria-label={workedTask.done ? 'Mark not done' : 'Mark done'}
+        >
+          <span className={cx('flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border-2 text-[10px] transition', workedTask.done ? 'border-leaf bg-leaf text-white' : 'border-ink/40')}>
+            {workedTask.done && '✓'}
+          </span>
+          <span className={cx('flex-1 truncate font-hand text-[18px] leading-none', workedTask.done && 'text-ink/40 line-through decoration-tomato/70')}>
+            {workedTask.title}
+          </span>
+          <span className="text-xs font-bold uppercase tracking-wide text-ink/50">{workedTask.done ? 'done' : 'mark done?'}</span>
+        </button>
       )}
 
       {focus && wrap.nextBreak && !primary ? (

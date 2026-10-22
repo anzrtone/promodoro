@@ -149,7 +149,17 @@ export function SubjectsScreen() {
         {wide ? (
           <aside className="sticky top-4">{detail ?? <div className="card p-5"><Empty>pick a folder or subject</Empty></div>}</aside>
         ) : (
-          <Sheet open={!!sel} onClose={() => setSel(null)}>
+          <Sheet
+            open={!!sel}
+            onClose={() => setSel(null)}
+            title={
+              sel && fresh === sel.id
+                ? sel.kind === 'subject'
+                  ? 'New subject'
+                  : 'New folder'
+                : undefined
+            }
+          >
             {detail}
           </Sheet>
         )}
@@ -627,6 +637,11 @@ function Detail({ sel, fresh, folders, boards, week, bare, onClose }: { sel: Own
 function SubjectFields({ board, folders, week }: { board: Board; folders: Folder[]; week: number }) {
   const settings = useSettings();
   const [confirm, setConfirm] = useState(false);
+  const sessionCount = useLiveQuery(
+    () => db.sessions.where('boardId').equals(board.id).filter((s) => !s.deleted).count(),
+    [board.id],
+    0,
+  );
   return (
     <div className="space-y-3 border-b border-rule pb-4">
       <p className="text-sm text-ink/60">{week > 0 ? `${formatDuration(week)} of focus this week` : 'No focus time this week yet'}</p>
@@ -643,15 +658,22 @@ function SubjectFields({ board, folders, week }: { board: Board; folders: Folder
           <Archive size={14} /> {board.archived ? 'Unarchive' : 'Archive'}
         </button>
         {confirm ? (
-          <span className="flex flex-wrap items-center gap-2 text-xs text-ink/70">
-            Past sessions keep their time, without this label. Its tasks & notes move to its folder.
-            <button className="chip !border-tomato !text-tomato" onClick={() => void removeSubject(board.id)}>
-              Delete
-            </button>
-            <button className="chip" onClick={() => setConfirm(false)}>
-              Cancel
-            </button>
-          </span>
+          <div className="w-full rounded-note border border-rule bg-creme p-3 text-sm">
+            <p className="mb-2 text-ink/80">
+              {sessionCount > 0
+                ? `This will permanently delete this subject and its ${sessionCount} session${sessionCount !== 1 ? 's' : ''} of focus history.`
+                : 'This will permanently delete this subject.'}
+            </p>
+            <p className="mb-3 text-xs text-ink/60">Tasks and notes will move to the folder.</p>
+            <div className="flex flex-wrap gap-2">
+              <button className="chip !border-tomato !text-tomato" onClick={() => void removeSubject(board.id)}>
+                Delete permanently
+              </button>
+              <button className="chip" onClick={() => setConfirm(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
         ) : (
           <button className="btn-ghost !px-2.5 !text-xs" onClick={() => setConfirm(true)}>
             <Trash2 size={14} /> Delete
@@ -691,19 +713,21 @@ function FolderFields({ folder, folders }: { folder: Folder; folders: Folder[] }
       </label>
       {confirm ? (
         <div className="rounded-note border border-rule bg-creme p-3 text-sm">
-          <p className="mb-2">What should happen to what's inside?</p>
+          <p className="mb-2">What should happen to subjects inside?</p>
           <div className="flex flex-wrap gap-2">
-            <button className="chip chip-on" onClick={() => void removeFolder(folder.id, 'lift')}>
-              Move it up a level
+            <button className="chip" onClick={() => void removeFolder(folder.id, 'lift')}>
+              Keep contents
             </button>
             <button className="chip" onClick={() => void removeFolder(folder.id, 'archive')}>
-              Archive it all
+              Archive everything
             </button>
             <button className="chip" onClick={() => setConfirm(false)}>
               Cancel
             </button>
           </div>
-          <p className="mt-2 text-xs text-ink/50">Your sessions are never deleted either way.</p>
+          <p className="mt-2 text-xs text-ink/50">
+            “Keep contents” moves subjects out of the folder. “Archive everything” hides the folder and all subjects inside.
+          </p>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">

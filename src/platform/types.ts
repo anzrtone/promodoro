@@ -89,4 +89,6 @@ export interface Platform {
   setCloseToTray?(on: boolean): Promise<void>;
   quit?(): Promise<void>;
   minimize?(): Promise<void>;
+  /** Open a link in the system browser / mail app. Without it the shared code falls back to window.open. */
+  openExternal?(url: string): Promise<void>;
 }

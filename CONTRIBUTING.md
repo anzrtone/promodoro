@@ -15,6 +15,10 @@ If you can't agree to #2, open an issue instead and describe the change so I can
 
 The Pomo mascot, name and icons are reserved (see [ASSETS.md](ASSETS.md)). Pull requests that add or change artwork must come with a written grant of the same kind as #2 above, or I can't merge them.
 
+## Releasing
+
+When you bump the version in `package.json` (and `src-tauri/Cargo.toml`), add a page for it at the top of `src/content/devlog.ts`. That is the in-app dev log, and `npm test` fails until it exists. Then push a `v*` tag; the app's update pill reads the GitHub release that tag produces, so write the release notes as you want users to see them. Release checks only run in official tagged builds (see `src/config/updates.ts`; `VITE_UPDATE_REPO=owner/name` turns them on for a fork, `off` disables them).
+
 ## Before you open a PR
 
 ```bash

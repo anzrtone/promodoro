@@ -476,7 +476,7 @@ function StartPanel({ compact }: { compact: boolean }) {
             </div>
           </section>
 
-          {tasks.length > 0 && (
+          {settings.showTasks && tasks.length > 0 && (
             <section className="flex flex-col gap-2">
               <div className="label">Task</div>
               <div className="relative">

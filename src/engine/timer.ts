@@ -161,6 +161,9 @@ export function applyEvent(s: TimerState | null, e: AnyEvent): TimerState | null
     case 'timer.note':
       return { ...base, ...pickNote(e.data) };
 
+    case 'timer.retask':
+      return { ...base, taskId: e.data.taskId };
+
     default:
       return s;
   }

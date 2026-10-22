@@ -79,8 +79,6 @@ export function append(pending: PendingEvent[]): Promise<AppendResult> {
             await db.sessions.put(session);
             finished.push(session);
             days.add(session.day);
-            if (next.taskId && next.phase === 'focus' && (next.endReason === 'complete' || next.endReason === 'early'))
-              await db.tasks.update(next.taskId, { done: true, doneAt: e.ts });
           }
         }
       }

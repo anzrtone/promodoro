@@ -53,6 +53,7 @@ export default {
         floatUp: { '0%': { opacity: '0', transform: 'translateY(6px) scale(0.6)' }, '20%': { opacity: '1' }, '100%': { opacity: '0', transform: 'translateY(-46px) scale(1)' } },
         wiggle: { '0%,100%': { transform: 'rotate(0)' }, '25%': { transform: 'rotate(-6deg)' }, '75%': { transform: 'rotate(6deg)' } },
         pop: { '0%': { transform: 'scale(0.6)', opacity: '0' }, '70%': { transform: 'scale(1.08)', opacity: '1' }, '100%': { transform: 'scale(1)' } },
+        fadeOut: { '0%': { opacity: '1', transform: 'scale(1) translateY(0)' }, '100%': { opacity: '0', transform: 'scale(0.85) translateY(8px)' } },
         breathe: { '0%,100%': { transform: 'scale(1)' }, '50%': { transform: 'scale(1.025)' } },
         pageIn: { '0%': { opacity: '0', transform: 'translateX(18px) rotate(0.6deg)' }, '100%': { opacity: '1', transform: 'none' } },
         // A dropped item settles into its new spot with a brief warm glow.
@@ -66,6 +67,7 @@ export default {
         floatUp: 'floatUp 2.2s ease-out forwards',
         wiggle: 'wiggle 0.5s ease-in-out',
         pop: 'pop 0.45s cubic-bezier(.2,.9,.3,1.3) both',
+        'fade-out': 'fadeOut 0.3s ease-in both',
         breathe: 'breathe 6s ease-in-out infinite',
         pageIn: 'pageIn 0.35s ease-out both',
         land: 'land 0.7s cubic-bezier(.2,.9,.3,1.2)',

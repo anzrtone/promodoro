@@ -7,6 +7,8 @@ export interface Toast {
   stickerId?: string;
   action?: { label: string; run: () => void };
   ttl?: number;
+  /** Set to true while the exit animation plays; the toast is removed from state after it completes. */
+  exiting?: boolean;
 }
 
 let toasts: Toast[] = [];
@@ -23,11 +25,15 @@ export function toast(t: Omit<Toast, 'id'>): number {
 }
 
 export function dismissToast(id: number) {
-  const next = toasts.filter((t) => t.id !== id);
-  if (next.length !== toasts.length) {
-    toasts = next;
+  const target = toasts.find((t) => t.id === id);
+  if (!target || target.exiting) return; // already gone or already animating out
+  toasts = toasts.map((t) => (t.id === id ? { ...t, exiting: true } : t));
+  emit();
+  // Remove from state once the CSS exit animation (300 ms) has finished.
+  setTimeout(() => {
+    toasts = toasts.filter((t) => t.id !== id);
     emit();
-  }
+  }, 300);
 }
 
 export function useToasts(): Toast[] {

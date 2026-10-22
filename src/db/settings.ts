@@ -80,6 +80,7 @@ export const SYNCED_PREFS = [
   'breakPolicy',
   'soundId',
   'breakSoundId',
+  'alarmRepeat',
   'dailyGoalMs',
   'shareWidgets',
   'chartSources',
@@ -87,6 +88,8 @@ export const SYNCED_PREFS = [
   'pomoTalks',
   'profile',
   'backupReminderDays',
+  'use24h',
+  'showTasks',
 ] as const satisfies ReadonlyArray<keyof AppSettings>;
 
 export interface AppSettings {
@@ -104,6 +107,8 @@ export interface AppSettings {
   vibrate: boolean;
   /** Silent + vibrate: no alarm audio at all. */
   silent: boolean;
+  /** Repeat the alarm several times until dismissed. Off = play once (default). */
+  alarmRepeat: boolean;
   ambient: AmbientId | null;
   ambientVolume: number;
   ambientAutoplay: boolean;
@@ -111,6 +116,8 @@ export interface AppSettings {
   accessory: AccessoryId;
   closeToTray: boolean;
   pomoTalks: boolean;
+  /** Show the task lists (focus note, focus mode, wrap-up). Off hides tasks everywhere on the timer screens. */
+  showTasks: boolean;
   boardId: string | null;
   /** Current position in the preset cycle (1-based focus round). */
   round: number;
@@ -129,6 +136,8 @@ export interface AppSettings {
   onboarded: boolean;
   /** Bumped when the welcome notebook gains pages worth showing again. */
   onboardingVersion: number;
+  /** Show times in 24-hour format (e.g. 14:30) instead of 12-hour AM/PM. */
+  use24h: boolean;
   /** Stays on this device. Only Pomo uses it. */
   profile: { name: string };
   survey: SurveyAnswers | null;
@@ -147,6 +156,25 @@ export interface AppSettings {
   sync: SyncSettings;
   /** The Sync tab's guided tour has been shown on this device (it replays from the Re-tour button). */
   syncTourSeen: boolean;
+  /** Look for a newer GitHub release once a day (see features/updates.ts). On by default, with an off switch in About. */
+  updateCheck: boolean;
+  updateCheckedAt: number;
+  /** The newest published release the last check found (it may be the one already installed). */
+  latestRelease: ReleaseInfo | null;
+  /** The release version whose pill the user dismissed. */
+  dismissedUpdate: string | null;
+  /** The release version we already popped a toast for. */
+  notifiedUpdate: string | null;
+  /** The app version whose dev log page the user has been shown. */
+  lastSeenVersion: string | null;
+}
+
+export interface ReleaseInfo {
+  version: string;
+  name: string;
+  url: string;
+  body: string;
+  publishedAt: string;
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -161,6 +189,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   volume: 0.7,
   vibrate: true,
   silent: false,
+  alarmRepeat: false,
   ambient: null,
   ambientVolume: 0.35,
   ambientAutoplay: false,
@@ -168,6 +197,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   accessory: 'none',
   closeToTray: true,
   pomoTalks: true,
+  showTasks: true,
   boardId: null,
   round: 1,
   chartSources: ['timed', 'adjusted', 'manual', 'imported'],
@@ -181,6 +211,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   installedAt: 0,
   onboarded: false,
   onboardingVersion: 0,
+  use24h: false,
   profile: { name: '' },
   survey: null,
   shareSurvey: false,
@@ -192,6 +223,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   prefsUpdatedAt: 0,
   sync: DEFAULT_SYNC,
   syncTourSeen: false,
+  updateCheck: true,
+  updateCheckedAt: 0,
+  latestRelease: null,
+  dismissedUpdate: null,
+  notifiedUpdate: null,
+  lastSeenVersion: null,
 };
 
 const KEY = 'app';

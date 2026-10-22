@@ -9,6 +9,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { openUrl } from '@tauri-apps/plugin-opener';
 import { isPermissionGranted, requestPermission } from '@tauri-apps/plugin-notification';
 import type { AlarmSpec, BackupWriteResult, NativeAction, Platform, PlatformHandlers, StatusSpec } from './types';
 
@@ -111,6 +112,10 @@ export const desktop: Platform = {
 
   async setCloseToTray(on) {
     await invoke('set_close_to_tray', { on });
+  },
+
+  async openExternal(url) {
+    await openUrl(url);
   },
 
   async quit() {

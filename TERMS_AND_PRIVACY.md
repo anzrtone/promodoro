@@ -48,6 +48,10 @@ Promodoro is a free, open-source focus timer for Windows and Android. This page 
 
 Your sessions, notes, subjects, timer settings, the name Pomo calls you, your sticker book and your backups are stored locally. I never receive them. If you use a cloud-folder or file backup/sync, that data goes to the folder or cloud provider **you** chose, under that provider's terms and privacy policy, and not to me.
 
+### Release check (GitHub, not my server)
+
+Official release builds also ask GitHub (`api.github.com`) once a day whether a newer Promodoro release exists, so the app can tell you about it. **On by default; turn it off in Settings, in the About section ("Tell me about new releases").** The request carries no ID or any data about you, and it does not go through my server. GitHub, like any website, sees your IP address and handles it under [its own privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). The app never downloads or installs anything by itself: it only links to the release page.
+
 ### What the app can send to my server
 
 | What | When | What is sent | Why | How long I keep it |

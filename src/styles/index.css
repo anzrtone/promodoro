@@ -27,6 +27,19 @@
 }
 
 /* Midnight Ink — free dark notebook (dark mode is an accessibility feature, never paywalled). */
+/* In midnight mode the halo yellow stays bright; force near-black text on it so every
+   bg-halo element (nav active tab, chip-on, segmented control, tour steps …) stays
+   legible without touching each call-site individually. */
+:root[data-theme='midnight'] .bg-halo {
+  color: rgb(45 49 46);
+}
+
+/* In dark mode bg-sheet and bg-paper are near-identical dark tones, making chip
+   hover imperceptible. Lift to the (now-brighter) rule colour for a visible step. */
+:root[data-theme='midnight'] .chip:not(.chip-on):hover {
+  background-color: rgb(var(--pm-rule));
+}
+
 :root[data-theme='midnight'] {
   --pm-creme: 30 33 40;
   --pm-paper: 41 45 54;
@@ -34,8 +47,10 @@
   --pm-leaf: 104 196 152;
   --pm-halo: 255 226 128;
   --pm-margin: 168 88 96;
-  --pm-rule: 56 61 72;
-  --pm-ink: 236 230 216;
+  /* Slightly lighter rule lines so borders are visible against dark surfaces. */
+  --pm-rule: 64 70 84;
+  /* Brighter ink so /45 and /50 opacity text still clears 3:1 on dark backgrounds. */
+  --pm-ink: 242 237 224;
   --pm-sheet: 36 40 48;
   color-scheme: dark;
 }
@@ -80,6 +95,10 @@ body {
   overscroll-behavior: none;
   user-select: none;
   -webkit-user-select: none;
+  /* Snap body line-height to the notebook grid (28 px) so text sits on
+     the rules instead of crossing through them. Headings opt out with
+     leading-none / leading-tight as needed. */
+  line-height: var(--pm-line);
 }
 
 input,
@@ -87,6 +106,9 @@ textarea,
 [contenteditable] {
   user-select: text;
   -webkit-user-select: text;
+  /* Restore native touch gestures (e.g. iOS cursor drag) that parent
+     touch-manipulation containers would otherwise suppress. */
+  touch-action: auto;
 }
 
 ::selection {
@@ -125,7 +147,16 @@ textarea,
     @apply pill border border-rule bg-sheet px-3 py-1.5 text-[13px] text-ink/80 hover:bg-paper;
   }
   .chip-on {
-    @apply border-halo bg-halo text-ink;
+    /* Keep text dark regardless of theme — halo yellow stays bright in all
+       palettes (incl. Midnight Ink), so light-on-light contrast would fail. */
+    @apply border-halo bg-halo;
+    color: rgb(45 49 46);
+  }
+  /* chip-on hover: pin the halo background so the chip's own hover:bg-paper
+     doesn't replace yellow with dark paper and leave dark text invisible. */
+  .chip-on:hover {
+    background-color: rgb(var(--pm-halo) / 0.82);
+    color: rgb(45 49 46);
   }
   .field {
     @apply w-full rounded-note border border-rule bg-sheet px-3 py-2 text-[15px] text-ink outline-none placeholder:text-ink/35 focus:border-ink/40;

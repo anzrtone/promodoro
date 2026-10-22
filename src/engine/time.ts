@@ -71,8 +71,15 @@ export function formatHours(ms: number): string {
   return `${h >= 10 ? Math.round(h) : Math.round(h * 10) / 10}h`;
 }
 
+/** Module-level flag updated by setTimeFormat(); avoids threading the setting through every call site. */
+let _use24h = false;
+/** Call this once on boot and whenever the use24h setting changes. */
+export function setTimeFormat(use24h: boolean): void {
+  _use24h = use24h;
+}
+
 export function formatTimeOfDay(ms: number): string {
-  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  return new Date(ms).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: !_use24h });
 }
 
 export function formatDayLabel(day: string): string {

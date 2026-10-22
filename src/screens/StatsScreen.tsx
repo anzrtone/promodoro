@@ -50,7 +50,7 @@ const RANGES = [
 type Range = (typeof RANGES)[number];
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const hourLabel = (h: number) => (h === 0 ? '12a' : h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`);
+const hourLabel = (h: number) => (h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`);
 const localDate = (day: string) => new Date(dayStart(day) + DAY / 2);
 
 /** "+1h 20m vs previous 7 days"; never coloured, it's information not a grade. Durations under a minute apart count as the same. */
@@ -172,7 +172,13 @@ export function StatsScreen() {
           </button>
         }
       >
-        {table ? <BucketTable buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} /> : <BucketBars buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} />}
+        {table ? (
+          <div className="-mx-1 overflow-x-auto px-1">
+            <BucketTable buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} />
+          </div>
+        ) : (
+          <BucketBars buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} />
+        )}
         <p className="mt-2 text-xs text-ink/50">Imported lumps and hand-added time are labelled, never judged. Toggle them above to see averages your way.</p>
       </Section>
 
@@ -274,7 +280,7 @@ function BucketBars({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit
 function BucketTable({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit: Range['unit']; byDay: Map<string, DailySummary>; sources: TimeSource[] }) {
   const shown = ALL_SOURCES.filter((s) => sources.includes(s));
   return (
-    <table className="w-full text-sm">
+    <table className="w-full min-w-[480px] text-sm">
       <thead>
         <tr className="text-left text-xs uppercase tracking-wide text-ink/50">
           <th className="py-1">{unit === 'day' ? 'Day' : unit === 'week' ? 'Week' : 'Month'}</th>
@@ -458,7 +464,7 @@ function SubjectRow({ node: n, max, depth }: { node: TreeNode; max: number; dept
           )}
           <span className={cx('truncate', n.kind === 'folder' && 'font-bold', n.kind === 'task' && 'text-ink/75')}>{n.name}</span>
         </span>
-        <span className={cx('h-3 rounded-r', n.kind === 'task' ? 'bg-tomato/50' : 'bg-tomato')} style={{ width: `${(n.ms / max) * 100}%`, minWidth: 4 }} />
+        <span className={cx('h-3 min-w-0 overflow-hidden rounded-r', n.kind === 'task' ? 'bg-tomato/50' : 'bg-tomato')} style={{ width: `${Math.min(100, (n.ms / max) * 100)}%`, minWidth: 4 }} />
         <span className="hidden sm:block">
           <Spark values={n.trend} />
         </span>

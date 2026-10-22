@@ -264,7 +264,7 @@ class Engine {
     // too), so the in-app queue stays quiet to avoid ringing twice.
     if (platform().nativeAlarmSound()) return alarmQueue.markHandled(key);
     const soundId = isSoundId(t.soundId) ? t.soundId : t.phase === 'focus' ? s.soundId : s.breakSoundId;
-    alarmQueue.enqueue({ key, soundId: isSoundId(soundId) ? soundId : 'kitchen', volume: s.volume, repeats: t.phase === 'focus' ? 2 : 1 });
+    alarmQueue.enqueue({ key, soundId: isSoundId(soundId) ? soundId : 'kitchen', volume: s.volume, repeats: s.alarmRepeat ? 8 : (t.phase === 'focus' ? 2 : 1) });
   }
 
   /* ---------- native sync ---------- */
@@ -409,6 +409,8 @@ class Engine {
   backfill = (id: string, minutes: number) => this.ev(id, 'timer.backfill', { ms: minutes * MINUTE });
   /** Scrub the clock: move elapsed time by `ms` (negative winds it back). */
   adjust = (id: string, ms: number) => this.ev(id, 'timer.adjust', { ms });
+  /** Change the task being worked on mid-session. Pass undefined to clear it. */
+  retask = (id: string, taskId: string | undefined) => this.ev(id, 'timer.retask', { taskId });
   overtime = (id: string, on: boolean, softTargetMin?: number) =>
     this.ev(id, 'timer.overtime', { on, softTargetMs: softTargetMin !== undefined ? softTargetMin * MINUTE : undefined });
 

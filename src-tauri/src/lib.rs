@@ -145,6 +145,7 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Shell { close_to_tray: AtomicBool::new(true), ..Default::default() })
         .manage(alarms::Scheduler::default())
         .setup(|app| {

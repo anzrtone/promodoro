@@ -26,11 +26,11 @@ describe('event store', () => {
     expect(day?.overtimeMs).toBe(5 * MINUTE);
   });
 
-  it('checks off a linked task when the focus session ends', async () => {
+  it('leaves a linked task open when the focus session ends (checking off is explicit)', async () => {
     await db.tasks.put({ id: 'task1', title: 'Read ch 3', done: false, createdAt: T0 });
     await append([e('timer.start', T0, { mode: 'countdown', overtime: false, phase: 'focus', plannedMs: 25 * MINUTE, taskId: 'task1' })]);
     await append([e('timer.done', T0 + 10 * MINUTE, { reason: 'early' })]);
-    expect((await db.tasks.get('task1'))?.done).toBe(true);
+    expect((await db.tasks.get('task1'))?.done).toBe(false);
   });
 
   it('soft-deletes and restores sessions; daily totals follow', async () => {

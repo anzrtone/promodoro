@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart3, CalendarClock, FolderOpen, Maximize2, Settings, Sticker, Timer } from 'lucide-react';
 import { setAmbient } from '@/audio/engine';
+import { setTimeFormat } from '@/engine/time';
 import { db } from '@/db/schema';
 import { useSettings, useStoredSettings } from '@/db/settings';
-import { isBreak } from '@/engine/cycle';
+
 import { isSupporter } from '@/features/license';
 import { navigate, useNav, type Tab } from '@/features/nav';
 import { dismissToast, useToasts } from '@/features/toasts';
@@ -20,6 +21,9 @@ import { StatsScreen } from '@/screens/StatsScreen';
 import { StickerScreen } from '@/screens/StickerScreen';
 import { SubjectsScreen } from '@/screens/SubjectsScreen';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
+import { DevLogSheet } from '@/components/DevLog';
+import { SidebarFooter, UpdateEffects } from '@/components/UpdatePill';
+import { useUpdate } from '@/features/updates';
 import { TourOverlay } from '@/components/TourOverlay';
 import { TimelineScreen } from '@/screens/TimelineScreen';
 
@@ -38,9 +42,11 @@ export function App() {
   const welcome = useWelcome();
   const [mini, setMini] = useState(false);
   useTheme(settings.theme, settings.license);
+  useEffect(() => { setTimeFormat(settings.use24h); }, [settings.use24h]);
   useAmbientAutoplay();
   useKeyboardShortcuts();
   useFocusModeAutoOpen(settings.focusModeAuto);
+  const { visible: updateVisible } = useUpdate();
   const newStickers = useLiveQuery(() => db.stickers.filter((s) => !s.seen).count(), [], 0);
 
   // Android back: close sheets first, then go back to Focus, then minimise.
@@ -104,11 +110,13 @@ export function App() {
           >
             <t.icon size={18} /> {t.label}
             {t.id === 'stickers' && newStickers > 0 && <span className="ml-auto h-2 w-2 rounded-full bg-tomato" />}
+            {t.id === 'settings' && updateVisible && <span className="ml-auto h-2 w-2 rounded-full bg-tomato" title="A new release is out" />}
           </button>
         ))}
+        <SidebarFooter />
       </nav>
 
-      <main ref={mainRef} className="bg-notebook relative flex-1 overflow-y-auto overflow-x-hidden safe-pt [--pm-margin-x:28px] md:[--pm-margin-x:44px]">
+      <main ref={mainRef} className="bg-notebook relative flex-1 overflow-y-auto overflow-x-hidden safe-pt [--pm-margin-x:28px] md:[--pm-margin-x:44px]" style={{ backgroundPositionY: '4px' }}>
         <div className="min-h-full px-4 pb-28 pt-6 sm:pl-14 sm:pr-8 md:pb-10">
           <Screen />
         </div>
@@ -123,11 +131,14 @@ export function App() {
             </span>
             {t.label}
             {t.id === 'stickers' && newStickers > 0 && <span className="absolute right-[30%] top-1.5 h-2 w-2 rounded-full bg-tomato" />}
+            {t.id === 'settings' && updateVisible && <span className="absolute right-[30%] top-1.5 h-2 w-2 rounded-full bg-tomato" />}
           </button>
         ))}
       </nav>
 
       <Toasts />
+      <DevLogSheet />
+      <UpdateEffects />
       <TourOverlay />
       {welcome && <OnboardingScreen mode={welcome.mode} settings={welcome.settings} />}
     </div>
@@ -162,7 +173,7 @@ function Toasts() {
       {toasts.map((t) => {
         const def = t.stickerId ? stickerDef(t.stickerId) : undefined;
         return (
-          <div key={t.id} className="pointer-events-auto flex items-center gap-3 rounded-full border border-rule bg-sheet py-2 pl-3 pr-4 shadow-lift animate-pop">
+          <div key={t.id} className={cx('pointer-events-auto flex items-center gap-3 rounded-full border border-rule bg-sheet py-2 pl-3 pr-4 shadow-lift', t.exiting ? 'animate-fade-out' : 'animate-pop')}>
             {def && <img src={STICKER_ART[def.art]} alt="" className="-my-3 h-12 w-12 object-contain" />}
             <span className={cx('text-sm font-bold', t.tone === 'success' && 'text-leaf')}>{t.text}</span>
             {t.action && (
@@ -216,10 +227,15 @@ function useAmbientAutoplay() {
   const s = useSettings();
   const key = primary ? `${primary.phase}:${primary.status}` : 'none';
   useEffect(() => {
-    if (!s.ambientAutoplay || !s.ambient) return;
+    if (!s.ambientAutoplay || !s.ambient) {
+      // Autoplay is off (or no ambient chosen) — always stop whatever is playing
+      // so a Settings preview never leaks into the rest of the app.
+      setAmbient(null, 0);
+      return;
+    }
     const on = primary?.phase === 'focus' && primary.status === 'running';
     if (on) setAmbient(s.ambient, s.ambientVolume);
-    else if (!primary || isBreak(primary.phase) || primary.status === 'paused') setAmbient(null, 0);
+    else setAmbient(null, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, s.ambientAutoplay, s.ambient]);
 }

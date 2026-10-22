@@ -13,13 +13,14 @@ import { TaskNote } from '@/components/TaskNote';
 import { FocusMode } from '@/components/FocusMode';
 
 export function FocusScreen() {
+  const { showTasks } = useSettings();
   return (
     <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
       <LastSessionLine />
       <Notices />
       <PromodoroCard />
       <SideTimers />
-      <TaskNote />
+      {showTasks && <TaskNote />}
       <BackupReminder />
       <WrapSheet />
       <FocusMode />

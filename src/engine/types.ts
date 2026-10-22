@@ -54,6 +54,8 @@ export type EventMap = {
   'timer.done': { reason: Exclude<EndReason, 'discarded'> };
   'timer.discard': Record<string, never>;
   'timer.note': { note?: string; mood?: Mood };
+  /** Change the task being focused on mid-session; undefined clears it. */
+  'timer.retask': { taskId?: string };
   'session.manual': ManualSessionPayload;
   'session.edit': { sessionId: string; patch: Partial<Pick<Session, 'label' | 'boardId' | 'note' | 'mood'>> };
   'session.delete': { sessionId: string };

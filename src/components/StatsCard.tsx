@@ -60,7 +60,7 @@ interface Block {
   draw: (c: CanvasRenderingContext2D, y: number) => void | Promise<void>;
 }
 
-const hourLabel = (h: number) => (h === 0 ? '12a' : h === 12 ? '12p' : h < 12 ? `${h}a` : `${h - 12}p`);
+const hourLabel = (h: number) => (h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`);
 const localDate = (day: string) => new Date(dayStart(day) + DAY / 2);
 
 export async function renderStatsCard(canvas: HTMLCanvasElement, s: StatsSnapshot, widgets: ShareWidgetId[]): Promise<void> {
@@ -193,7 +193,7 @@ export async function renderStatsCard(canvas: HTMLCanvasElement, s: StatsSnapsho
           const base = y + 70 + n * (rowH + gap) + 26;
           muted(c, 0.5);
           c.font = '700 22px Nunito';
-          ['12a', '6a', '12p', '6p', '12a'].forEach((t, i) => {
+          ['12am', '6am', '12pm', '6pm', '12am'].forEach((t, i) => {
             const x = X0 + LBL + (i / 4) * (CW - LBL);
             const tw = c.measureText(t).width;
             c.fillText(t, i === 0 ? x : i === 4 ? x - tw : x - tw / 2, base);
@@ -343,7 +343,7 @@ export async function renderStatsCard(canvas: HTMLCanvasElement, s: StatsSnapsho
           });
           muted(c, 0.5);
           c.font = '700 22px Nunito';
-          ['12a', '6a', '12p', '6p', '12a'].forEach((t, i) => {
+          ['12am', '6am', '12pm', '6pm', '12am'].forEach((t, i) => {
             const x = X0 + (i / 4) * CW;
             const tw = c.measureText(t).width;
             c.fillText(t, i === 0 ? x : i === 4 ? x - tw : x - tw / 2, base + 32);

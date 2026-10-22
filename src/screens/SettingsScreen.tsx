@@ -11,7 +11,7 @@ import type { ModeChoice, Preset } from '@/engine/types';
 import { isSupporter, verifyLicense } from '@/features/license';
 import { navigate, useNav } from '@/features/nav';
 import { toast } from '@/features/toasts';
-import { platform } from '@/platform';
+import { openLink, platform } from '@/platform';
 import { Pomo } from '@/components/Pomo';
 import { OnboardingScreen } from '@/screens/OnboardingScreen';
 import { HEARD_OPTIONS, setSurveySharing, USE_OPTIONS } from '@/features/onboarding';
@@ -23,6 +23,11 @@ import { SoundSelect } from '@/components/PromodoroCard';
 import { BackupPanel } from '@/components/BackupPanel';
 import { SyncPanel } from '@/components/SyncPanel';
 import { DangerZone } from '@/components/DangerZone';
+import { UpdateBanner } from '@/components/UpdatePill';
+import { openDevLog } from '@/features/devlog';
+import { checkForUpdates, currentVersion } from '@/features/updates';
+import { DISCORD_INVITE, RELEASES_API } from '@/config/updates';
+import { DiscordIcon } from '@/components/DiscordIcon';
 import { cx, Section, Segmented, Slider, Stepper, Toggle } from '@/components/ui';
 
 /** Where supporters can buy a key / tip. Change to your own page. */
@@ -58,6 +63,7 @@ export function SettingsScreen() {
   }, [nav.settingsSection]);
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
+      <UpdateBanner />
       <Segmented
         value={tab}
         onChange={setTab}
@@ -274,6 +280,14 @@ function SoundSettings() {
     unlockAudio();
     if (isSoundId(id)) previewSound(id, s.volume);
   };
+  // Stop any preview ambient when leaving Settings, unless autoplay will
+  // manage it (i.e. a focus session is running with autoplay on).
+  useEffect(() => {
+    return () => {
+      if (!s.ambientAutoplay) setAmbient(null, 0);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   return (
     <Section title="Sounds">
       <div className="grid gap-3 sm:grid-cols-2">
@@ -303,6 +317,7 @@ function SoundSettings() {
       <Slider label="Volume" value={Math.round(s.volume * 100)} min={0} max={100} format={(v) => `${v}%`} onChange={(v) => void updateSettings({ volume: v / 100 })} />
       <Toggle checked={s.vibrate} onChange={(v) => void updateSettings({ vibrate: v })} label="Vibrate" />
       <Toggle checked={s.silent} onChange={(v) => void updateSettings({ silent: v })} label="Silent + vibrate" hint="No alarm audio at all, just a buzz and a notification." />
+      <Toggle checked={s.alarmRepeat} onChange={(v) => void updateSettings({ alarmRepeat: v })} label="Repeat alarm" hint="Rings several times until you're back. Off = plays once and stops." />
       {platform().kind === 'android' && <p className="text-xs text-ink/55">When the screen is off, Android plays alarms through the notification channel at your phone's notification volume.</p>}
 
       <div className="mt-3">
@@ -398,7 +413,9 @@ function AppearanceSettings() {
           );
         })}
       </div>
+      <Toggle checked={s.showTasks} onChange={(v) => void updateSettings({ showTasks: v })} label="Show task lists" hint="Turn off to hide tasks on the timer, focus mode and wrap-up." />
       <Toggle checked={s.pomoTalks} onChange={(v) => void updateSettings({ pomoTalks: v })} label="Pomo talks" hint="Little encouraging notes in the margin." />
+      <Toggle checked={s.use24h} onChange={(v) => void updateSettings({ use24h: v })} label="24-hour clock" hint="Show times like 14:30 instead of 2:30 PM." />
     </Section>
   );
 }
@@ -460,14 +477,48 @@ function SupporterSettings() {
   );
 }
 
+function UpdateSettings() {
+  const s = useSettings();
+  const [msg, setMsg] = useState<string | null>(null);
+  const check = async () => {
+    setMsg('Checking…');
+    const r = await checkForUpdates({ force: true });
+    setMsg(r === 'update' ? 'A new release is out! See the dev log.' : r === 'current' ? "You're on the latest release." : r === 'failed' ? "Couldn't reach GitHub. Try again later." : "This build doesn't check for updates.");
+    if (r === 'update') openDevLog();
+  };
+  return (
+    <div className="mt-3 border-t border-rule pt-1">
+      {RELEASES_API && (
+        <>
+          <Toggle
+            checked={s.updateCheck}
+            onChange={(v) => void updateSettings({ updateCheck: v })}
+            label="Tell me about new releases"
+            hint="Once a day Promodoro asks GitHub for the latest release. Nothing about you is sent; GitHub sees an IP address, like any web request."
+          />
+        </>
+      )}
+      <div className="flex flex-wrap items-center gap-2 pb-1 pt-2">
+        <button className="btn-soft" onClick={openDevLog}>Dev log</button>
+        <button className="btn-soft" onClick={() => void openLink(DISCORD_INVITE)}>
+          <DiscordIcon size={15} /> Join the Discord
+        </button>
+        {RELEASES_API && <button className="btn-soft" onClick={() => void check()}>Check for updates</button>}
+        {msg && <span className="text-sm text-ink/60">{msg}</span>}
+      </div>
+    </div>
+  );
+}
+
 function About() {
   return (
     <Section title="About">
       <p className="text-sm text-ink/70">
-        Promodoro {__APP_VERSION__}. Focus at your own pace. Your progress counts, even when your day isn't perfect.
+        Promodoro {currentVersion()}. Focus at your own pace. Your progress counts, even when your day isn't perfect.
       </p>
+      <UpdateSettings />
       <p className="mt-2 text-xs text-ink/55">
-        Your notebook never leaves this device unless you export it. Promodoro sends a once-a-day anonymous count (a random id, your platform and the app version) so the developer knows roughly how many people use it (switch it off in You & Pomo), and your welcome-survey answers only if you opt in (see You &amp; Pomo). Device sync, if you turn it on, is end-to-end encrypted. Promodoro is not a medical tool and makes no clinical claims.
+        Your notebook never leaves this device unless you export it. Promodoro sends a once-a-day anonymous count (a random id, your platform and the app version) so the developer knows roughly how many people use it (switch it off in You & Pomo), and your welcome-survey answers only if you opt in (see You &amp; Pomo). If you leave "Tell me about new releases" on, it also asks GitHub for the latest release once a day. Device sync, if you turn it on, is end-to-end encrypted. Promodoro is not a medical tool and makes no clinical claims.
       </p>
       <p className="mt-2 text-xs">
         <a className="underline text-ink/65 hover:text-ink" href={LEGAL_URL} target="_blank" rel="noreferrer">

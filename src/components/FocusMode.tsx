@@ -6,23 +6,24 @@
  */
 import { useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Check, Coffee, Lock, LockOpen, Minimize2, Pause, Play, Volume2 } from 'lucide-react';
+import { Check, ChevronDown, Coffee, Lock, LockOpen, Minimize2, Pause, Play, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { append } from '@/db/repo';
+import { useSettings } from '@/db/settings';
 import { isBreak, phaseLabel } from '@/engine/cycle';
-import { formatClock, formatDuration, formatTimeOfDay, DAY, MINUTE } from '@/engine/time';
+import { formatClock, formatDuration, formatTimeOfDay, uid, DAY, MINUTE } from '@/engine/time';
 import { nextAlarmAt, snapshot, type PendingEvent } from '@/engine/timer';
-import type { TimerSnapshot, TimerState } from '@/engine/types';
+import type { Task, TimerSnapshot, TimerState } from '@/engine/types';
 import { engine, usePromodoroEngine } from '@/hooks/usePromodoroEngine';
 import { holdWakeLock, setFocusMode, useFocusMode } from '@/features/focusMode';
-import { POMO_LINES } from './Pomo';
+import { Pomo, POMO_LINES } from './Pomo';
 import { cx } from './ui';
 
 const IDLE_MS = 5000;
 const LOCK_KEY = 'promodoro.ringLocked';
 
-function useRingLock(): [boolean, () => void] {
-  const [locked, setLocked] = useState(() => {
+function useRingLock(idle: boolean): [boolean, () => void] {
+  const [manual, setManual] = useState(() => {
     try {
       return localStorage.getItem(LOCK_KEY) === '1';
     } catch {
@@ -30,15 +31,17 @@ function useRingLock(): [boolean, () => void] {
     }
   });
   const toggle = () =>
-    setLocked((l) => {
+    setManual((m) => {
+      const next = !m;
       try {
-        localStorage.setItem(LOCK_KEY, l ? '0' : '1');
+        localStorage.setItem(LOCK_KEY, next ? '1' : '0');
       } catch {
         /* remembering the lock is a convenience */
       }
-      return !l;
+      return next;
     });
-  return [locked, toggle];
+  // Auto-lock whenever the UI goes idle; stays locked until the user explicitly unlocks.
+  return [manual || idle, toggle];
 }
 
 export function FocusMode() {
@@ -77,7 +80,21 @@ export function FocusMode() {
   // Between sessions the "session complete" sheet sits on a quiet backdrop, so starting the break flows straight back in.
   if (!primary || !primarySnap)
     return (
-<div className="fixed inset-0 z-[35] bg-creme" aria-hidden />
+      <div className="fixed inset-0 z-[35] flex flex-col items-center justify-center gap-3 bg-creme" role={wrap ? undefined : 'status'} aria-hidden={wrap ? true : undefined}>
+        {!wrap && (
+          <>
+            <Pomo mood="happy" size={88} />
+            <p className="flex items-baseline gap-1 font-hand text-[22px] text-ink/60">
+              wrapping up
+              <span className="inline-flex gap-0.5" aria-hidden>
+                {[0, 1, 2].map((i) => (
+                  <span key={i} className="animate-bounce" style={{ animationDelay: `${i * 150}ms` }}>.</span>
+                ))}
+              </span>
+            </p>
+          </>
+        )}
+      </div>
     );
   return <FocusView t={primary} snap={primarySnap} ringing={ringing} />;
 }
@@ -102,11 +119,12 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
   const paused = t.status === 'paused';
   const brk = isBreak(t.phase);
   const hasTarget = snap.targetMs > 0;
-  const [locked, toggleLock] = useRingLock();
+  // idle must be computed before locked so auto-lock can read it.
+  const [idle, wake] = useIdle(!paused && !ringing);
+  const [locked, toggleLock] = useRingLock(idle);
   const scrub = useRingScrub(t, snap, hasTarget && !locked);
   const scrubbing = scrub.remaining !== null;
   const flow = snap.inOvertime && !scrubbing;
-  const [idle, wake] = useIdle(!paused && !ringing);
   const [line] = useState(() => {
     const lines = POMO_LINES[brk ? 'sleepy' : 'focused'];
     return lines[Math.floor(Math.random() * lines.length)];
@@ -398,9 +416,21 @@ function PhasePill({ t }: { t: TimerState }) {
 
 /**
  * The subject and the task in hand: the session's own task if it has one, otherwise the
- * subject's next open task. Ticking it off shows the next one.
+ * subject's next open task. Ticking it off shows the next one. A small swap button lets
+ * the user change which task they're working on even after the timer has started.
  */
 function WorkingOn({ t }: { t: TimerState }) {
+  const { showTasks } = useSettings();
+  const [newTitle, setNewTitle] = useState('');
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('pm.focusTasksCollapsed') === '1'; } catch { return false; }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try { localStorage.setItem('pm.focusTasksCollapsed', c ? '0' : '1'); } catch { /* ignore */ }
+      return !c;
+    });
+  };
   // null = no subject; undefined = still loading (render nothing rather than flash "No subject").
   const board = useLiveQuery(async () => (t.boardId ? ((await db.boards.get(t.boardId)) ?? null) : null), [t.boardId]);
   const tasks = useLiveQuery(
@@ -413,10 +443,18 @@ function WorkingOn({ t }: { t: TimerState }) {
   );
   if (board === undefined || tasks === undefined) return null;
   const own = t.taskId ? tasks.find((x) => x.id === t.taskId) : undefined;
-  const task = own && !own.done ? own : tasks.find((x) => !x.done);
+  const current = own && !own.done ? own : tasks.find((x) => !x.done);
   const justDone = tasks.filter((x) => x.done && (x.doneAt ?? 0) > Date.now() - 10_000).pop();
-  if (isBreak(t.phase) || (!board && !task && !t.label && !justDone)) return null;
+  if (isBreak(t.phase) || (!board && !current && !t.label && !justDone && !showTasks)) return null;
   const toggle = (id: string, done: boolean) => append([{ type: 'task.done', ts: Date.now(), data: { taskId: id, done } } as PendingEvent]);
+  // Stack: the task in hand first, then the rest of the open ones in creation order.
+  const stack = current ? [current, ...tasks.filter((x) => !x.done && x.id !== current.id)] : [];
+  const addTask = () => {
+    const title = newTitle.trim();
+    if (!title) return;
+    void db.tasks.put({ id: uid('task'), title, done: false, createdAt: Date.now(), ...(board ? { boardId: board.id } : {}) });
+    setNewTitle('');
+  };
 
   return (
     <div className="w-full max-w-md rounded-card border border-rule bg-sheet/90 px-4 py-3 shadow-note">
@@ -424,21 +462,72 @@ function WorkingOn({ t }: { t: TimerState }) {
         {board && <span className="h-2.5 w-2.5 rounded-full" style={{ background: board.color }} />}
         <span className="truncate font-bold">{board?.name ?? 'No subject'}</span>
         {t.label && t.label !== board?.name && <span className="truncate font-hand text-[17px] text-ink/70">· {t.label}</span>}
+        {showTasks && stack.length > 1 && (
+          <button
+            className="ml-auto flex shrink-0 items-center gap-1 text-ink/40 transition-colors hover:text-ink/70"
+            onClick={toggleCollapsed}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Show all tasks' : 'Show only the first task'}
+            title={collapsed ? 'Show all tasks' : 'Show only the first task'}
+          >
+            {collapsed && <span className="text-xs font-bold">+{stack.length - 1}</span>}
+            <ChevronDown size={16} className={cx('transition-transform', !collapsed && 'rotate-180')} />
+          </button>
+        )}
       </div>
-      {justDone && (
-        <button className="mt-1 flex w-full items-center gap-3 text-left text-ink/45" onClick={() => void toggle(justDone.id, false)} title="Undo">
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-leaf bg-leaf text-[13px] text-white">✓</span>
-          <span className="truncate font-hand text-[20px] line-through decoration-tomato/70">{justDone.title}</span>
-        </button>
-      )}
-      {task ? (
-        <div className="mt-1 flex items-center gap-3">
-          <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink/40 hover:border-leaf" onClick={() => void toggle(task.id, true)} aria-label={`Mark "${task.title}" done`} />
-          <span className="truncate font-hand text-[22px] leading-tight">{task.title}</span>
-        </div>
-      ) : (
-        !justDone && <p className="mt-1 font-hand text-[19px] text-ink/45">no task picked, just focus</p>
+      {showTasks && (
+        <>
+          {justDone && (
+            <button className="mt-1 flex w-full items-center gap-3 text-left text-ink/45" onClick={() => void toggle(justDone.id, false)} title="Undo">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-leaf bg-leaf text-[13px] text-white">✓</span>
+              <span className="truncate font-hand text-[20px] line-through decoration-tomato/70">{justDone.title}</span>
+            </button>
+          )}
+          {stack.length > 0 && (
+            <>
+              <TaskRow task={stack[0]} first onDone={() => void toggle(stack[0].id, true)} />
+              {/* Grid-rows trick: animates height 0 ↔ auto without measuring. */}
+              <div
+                className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out', collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100')}
+                aria-hidden={collapsed}
+              >
+                <div className="overflow-hidden">
+                  <ul className="max-h-48 space-y-1 overflow-y-auto pt-1">
+                    {stack.slice(1).map((x) => (
+                      <TaskRow key={x.id} task={x} onDone={() => void toggle(x.id, true)} onPick={() => void engine.retask(t.id, x.id)} />
+                    ))}
+                  </ul>
+                  <form className="mt-1 flex items-center gap-3" onSubmit={(e) => { e.preventDefault(); addTask(); }}>
+                    <span className="h-6 w-6 shrink-0 rounded-full border-2 border-dashed border-ink/25" />
+                    <input
+                      className="min-w-0 flex-1 bg-transparent font-hand text-[19px] leading-tight outline-none placeholder:text-ink/30"
+                      placeholder="add a task…"
+                      value={newTitle}
+                      tabIndex={collapsed ? -1 : 0}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                    />
+                  </form>
+                </div>
+              </div>
+            </>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+function TaskRow({ task, first, onDone, onPick }: { task: Task; first?: boolean; onDone: () => void; onPick?: () => void }) {
+  return (
+    <li className={cx('flex list-none items-center gap-3', first && 'mt-1')}>
+      <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink/40 hover:border-leaf" onClick={onDone} aria-label={`Mark "${task.title}" done`} />
+      <button
+        className={cx('flex-1 truncate text-left font-hand leading-tight', first ? 'text-[22px]' : 'text-[19px] text-ink/70 hover:text-ink')}
+        onClick={onPick}
+        title={onPick ? 'Work on this one now' : undefined}
+      >
+        {task.title}
+      </button>
+    </li>
   );
 }

@@ -13,11 +13,11 @@ export const NO_SUBJECT_COLOR = 'rgb(var(--pm-ink) / 0.35)';
 function DayAxis({ indent }: { indent: string }) {
   return (
     <div className={cx('flex justify-between pt-1 text-[10px] font-bold text-ink/45', indent)}>
-      <span>12a</span>
-      <span>6a</span>
-      <span>12p</span>
-      <span>6p</span>
-      <span>12a</span>
+      <span>12am</span>
+      <span>6am</span>
+      <span>12pm</span>
+      <span>6pm</span>
+      <span>12am</span>
     </div>
   );
 }
@@ -99,14 +99,14 @@ export function SubjectDonut({ slices }: { slices: SubjectSlice[] }) {
       </svg>
       <ul className="w-full min-w-0 space-y-2 text-sm">
         {slices.map((s) => (
-          <li key={s.name} title={`${s.name}: ${formatDuration(s.ms)}`}>
+          <li key={s.name} className="overflow-hidden" title={`${s.name}: ${formatDuration(s.ms)}`}>
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: s.color }} />
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
               <span className="text-xs text-ink/50 tabular">{Math.round((s.ms / total) * 100)}%</span>
               <span className="w-16 text-right font-display font-semibold tabular">{formatDuration(s.ms)}</span>
             </div>
-            <div className="ml-[18px] mt-1 h-1.5 rounded-full" style={{ width: `${(s.ms / slices[0].ms) * 100}%`, background: s.color, minWidth: 4 }} />
+            <div className="ml-[18px] mt-1 h-1.5 max-w-full rounded-full" style={{ width: `${(s.ms / slices[0].ms) * 100}%`, background: s.color, minWidth: 4 }} />
           </li>
         ))}
       </ul>
