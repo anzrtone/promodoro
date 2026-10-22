@@ -11,11 +11,16 @@ import { startAutoBackupLoop } from '@/features/autoBackup';
 import { unlockAudio } from '@/audio/engine';
 import { syncSurvey } from '@/features/survey';
 import { clearLeftoverDemo } from '@/features/demo';
+import { previewOn } from '@/dev/flag';
 import { sendPing } from '@/features/ping';
 import { startAutoSyncLoop } from '@/sync';
 
 async function boot() {
   await loadPlatform();
+  if (previewOn()) {
+    const { ensurePreviewSeeded } = await import('@/dev/preview');
+    await ensurePreviewSeeded();
+  }
   await ensureSeeded();
   void requestPersistence();
   await engine.start();
@@ -27,6 +32,7 @@ async function boot() {
   if (import.meta.env.DEV) {
     const { seedDemoData } = await import('@/dev/seed');
     Object.assign(window, { promodoroSeed: seedDemoData });
+    void mountDevPanel();
   }
   // WebViews keep audio suspended until the first gesture.
   window.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
@@ -47,3 +53,11 @@ boot().catch((err) => {
     <p>Your data is safe on this device. Please restart Promodoro.</p>
     <pre style="white-space:pre-wrap;font-size:12px;opacity:.6">${String(err?.stack ?? err)}</pre></div>`;
 });
+
+/** Dev-only admin panel, in its own React root so it never touches the app tree. */
+async function mountDevPanel() {
+  const { DevPanel } = await import('@/dev/DevPanel');
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  createRoot(el).render(<DevPanel />);
+}
