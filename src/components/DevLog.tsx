@@ -5,13 +5,14 @@
 import { useState } from 'react';
 import { ExternalLink, Mail, RefreshCw } from 'lucide-react';
 import { DEVLOG, KIND_LABEL, type ChangeKind } from '@/content/devlog';
-import { CONTACT_EMAIL, DISCORD_HANDLE, DISCORD_INVITE, ISSUES_URL, RELEASES_API } from '@/config/updates';
+import { CONTACT_EMAIL, DISCORD_HANDLE, DISCORD_INVITE, ISSUES_URL, RELEASES_API, SUPPORT_URL } from '@/config/updates';
 import { updateSettings, useSettings } from '@/db/settings';
 import { closeDevLog, useDevLogOpen } from '@/features/devlog';
 import { parseInline, parseNotes } from '@/features/releaseNotes';
 import { checkForUpdates, currentVersion, dismissUpdate, newerRelease, type CheckResult } from '@/features/updates';
 import { openLink } from '@/platform';
 import { Pomo, type PomoMood } from './Pomo';
+import supportIcon from '@/assets/supportkori.png';
 import { DiscordIcon } from './DiscordIcon';
 import { cx, Sheet } from './ui';
 
@@ -136,6 +137,16 @@ function Contact() {
   );
 }
 
+function SupportBadge() {
+  return (
+    <div className="mt-5 flex justify-center pb-1">
+      <button className="pill gap-2 px-4 py-2 text-sm font-bold text-ink hover:bg-halo" onClick={() => void openLink(SUPPORT_URL)} title="Support the developer on Kori">
+        <img src={supportIcon} alt="" width={20} height={20} className="rounded-md" /> Support me
+      </button>
+    </div>
+  );
+}
+
 export function DevLogSheet() {
   const open = useDevLogOpen();
   const current = currentVersion();
@@ -164,6 +175,7 @@ export function DevLogSheet() {
         ))}
       </div>
       <Contact />
+      <SupportBadge />
     </Sheet>
   );
 }
