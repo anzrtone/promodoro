@@ -11,13 +11,16 @@ import { startAutoBackupLoop } from '@/features/autoBackup';
 import { unlockAudio } from '@/audio/engine';
 import { syncSurvey } from '@/features/survey';
 import { clearLeftoverDemo } from '@/features/demo';
-import { previewOn } from '@/dev/flag';
+import { brollClip, previewOn } from '@/dev/flag';
 import { sendPing } from '@/features/ping';
 import { startAutoSyncLoop } from '@/sync';
 
 async function boot() {
   await loadPlatform();
-  if (previewOn()) {
+  if (brollClip()) {
+    const { prepareBroll } = await import('@/dev/broll');
+    await prepareBroll();
+  } else if (previewOn()) {
     const { ensurePreviewSeeded } = await import('@/dev/preview');
     await ensurePreviewSeeded();
   }
@@ -32,7 +35,8 @@ async function boot() {
   if (import.meta.env.DEV) {
     const { seedDemoData } = await import('@/dev/seed');
     Object.assign(window, { promodoroSeed: seedDemoData });
-    void mountDevPanel();
+    // B-roll takes are recorded as finished footage: no DEV pill on screen.
+    if (!brollClip()) void mountDevPanel();
   }
   // WebViews keep audio suspended until the first gesture.
   window.addEventListener('pointerdown', unlockAudio, { once: true, capture: true });
@@ -44,6 +48,7 @@ async function boot() {
       </ErrorBoundary>
     </StrictMode>,
   );
+  if (brollClip()) void import('@/dev/broll').then((m) => m.runBroll());
 }
 
 boot().catch((err) => {

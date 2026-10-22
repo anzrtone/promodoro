@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "sounds": "tsx scripts/render-sounds.ts",
+    "broll:record": "node scripts/record-broll.mjs",
     "icons": "tauri icon assets/icon-1024.png && python3 scripts/android-icons.py",
     "license:init": "node scripts/license.mjs init",
     "license:sign": "node scripts/license.mjs sign",

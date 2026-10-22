@@ -77,7 +77,7 @@ export async function seedPreview(): Promise<void> {
     await db.stickers.bulkPut(data.stickers);
     await db.settings.put({ key: SEEDED, value: Date.now() });
   });
-  await updateSettings({ onboarded: true, boardId: BOARDS[0].id, profile: { name: 'Preview' }, pingEnabled: false, updateCheck: false, syncTourSeen: true, lastSeenVersion: currentVersion(), presetId: DEFAULT_PRESETS[0].id, dailyGoalMs: 2 * HOUR });
+  await updateSettings({ onboarded: true, boardId: BOARDS[0].id, profile: { name: 'Anzar' }, pingEnabled: false, updateCheck: false, syncTourSeen: true, lastSeenVersion: currentVersion(), presetId: DEFAULT_PRESETS[0].id, dailyGoalMs: 2 * HOUR });
 }
 
 /** Empty the preview notebook (it is its own database, so the real one is never touched). */

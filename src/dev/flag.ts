@@ -6,9 +6,22 @@
 const KEY = 'promodoro-dev-preview';
 
 export const PREVIEW_DB = 'promodoro-dev-preview';
+/** B-roll clips get their own throwaway notebook, re-seeded on every load so each take starts identical. */
+export const BROLL_DB = 'promodoro-dev-broll';
+
+/** `?broll=<clip>` runs a scripted screen-recording clip (see src/dev/broll). */
+export function brollClip(): string | null {
+  if (!import.meta.env.DEV) return null;
+  try {
+    return new URLSearchParams(location.search).get('broll');
+  } catch {
+    return null;
+  }
+}
 
 export function previewOn(): boolean {
   if (!import.meta.env.DEV) return false;
+  if (brollClip()) return true;
   try {
     return localStorage.getItem(KEY) === '1';
   } catch {
