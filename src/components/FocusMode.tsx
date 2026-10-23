@@ -9,14 +9,16 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ChevronDown, Coffee, Lock, LockOpen, Minimize2, Pause, Play, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { append } from '@/db/repo';
+import { addTask as saveTask, byTaskOrder } from '@/db/folders';
 import { useSettings } from '@/db/settings';
 import { isBreak, phaseLabel } from '@/engine/cycle';
-import { formatClock, formatDuration, formatTimeOfDay, uid, DAY, MINUTE } from '@/engine/time';
+import { formatClock, formatDuration, formatTimeOfDay, DAY, MINUTE } from '@/engine/time';
 import { nextAlarmAt, snapshot, type PendingEvent } from '@/engine/timer';
 import type { Task, TimerSnapshot, TimerState } from '@/engine/types';
 import { engine, usePromodoroEngine } from '@/hooks/usePromodoroEngine';
 import { holdWakeLock, setFocusMode, useFocusMode } from '@/features/focusMode';
 import { Pomo, POMO_LINES } from './Pomo';
+import { SortableRow, SortableTasks, TaskTitle } from './TaskList';
 import { cx } from './ui';
 
 const IDLE_MS = 5000;
@@ -433,12 +435,14 @@ function WorkingOn({ t }: { t: TimerState }) {
   };
   // null = no subject; undefined = still loading (render nothing rather than flash "No subject").
   const board = useLiveQuery(async () => (t.boardId ? ((await db.boards.get(t.boardId)) ?? null) : null), [t.boardId]);
+  const boards = useLiveQuery(() => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
   const tasks = useLiveQuery(
-    () =>
-      db.tasks
-        .orderBy('createdAt')
-        .filter((x) => (t.boardId ? x.boardId === t.boardId : !x.boardId && !x.folderId) && (!x.done || (x.doneAt ?? 0) > Date.now() - DAY))
-        .toArray(),
+    async () =>
+      (
+        await db.tasks
+          .filter((x) => (t.boardId ? x.boardId === t.boardId : !x.boardId && !x.folderId) && (!x.done || (x.doneAt ?? 0) > Date.now() - DAY))
+          .toArray()
+      ).sort(byTaskOrder),
     [t.boardId],
   );
   if (board === undefined || tasks === undefined) return null;
@@ -447,20 +451,50 @@ function WorkingOn({ t }: { t: TimerState }) {
   const justDone = tasks.filter((x) => x.done && (x.doneAt ?? 0) > Date.now() - 10_000).pop();
   if (isBreak(t.phase) || (!board && !current && !t.label && !justDone && !showTasks)) return null;
   const toggle = (id: string, done: boolean) => append([{ type: 'task.done', ts: Date.now(), data: { taskId: id, done } } as PendingEvent]);
-  // Stack: the task in hand first, then the rest of the open ones in creation order.
+  // Stack: the task in hand first, then the rest of the open ones in list order.
   const stack = current ? [current, ...tasks.filter((x) => !x.done && x.id !== current.id)] : [];
-  const addTask = () => {
+  const rest = stack.slice(1);
+  const addTask = async () => {
     const title = newTitle.trim();
     if (!title) return;
-    void db.tasks.put({ id: uid('task'), title, done: false, createdAt: Date.now(), ...(board ? { boardId: board.id } : {}) });
     setNewTitle('');
+    const id = await saveTask(title, board ? { kind: 'subject', id: board.id } : null, { today: true });
+    // The first task of an empty list is the one this session is about.
+    if (!stack.length) void engine.retask(t.id, id);
   };
+  const addForm = (
+    <form className="mt-1 flex items-center gap-3" onSubmit={(e) => { e.preventDefault(); void addTask(); }}>
+      <span className="h-6 w-6 shrink-0 rounded-full border-2 border-dashed border-ink/25" />
+      <input
+        className="min-w-0 flex-1 bg-transparent font-hand text-[19px] leading-tight outline-none placeholder:text-ink/30"
+        placeholder={stack.length ? 'add a task…' : 'what are you working on?'}
+        value={newTitle}
+        tabIndex={stack.length && collapsed ? -1 : 0}
+        onChange={(e) => setNewTitle(e.target.value)}
+      />
+    </form>
+  );
 
   return (
     <div className="w-full max-w-md rounded-card border border-rule bg-sheet/90 px-4 py-3 shadow-note">
       <div className="flex items-center gap-2 text-[13px] text-ink/60">
-        {board && <span className="h-2.5 w-2.5 rounded-full" style={{ background: board.color }} />}
-        <span className="truncate font-bold">{board?.name ?? 'No subject'}</span>
+        {/* Tap the subject to move this session (and a task that has no subject yet) to another one. */}
+        <label className="relative flex min-w-0 cursor-pointer items-center gap-2 rounded-full transition-colors hover:text-ink" title="Change subject">
+          <span className={cx('h-2.5 w-2.5 shrink-0 rounded-full', !board && 'border-2 border-dashed border-ink/30')} style={board ? { background: board.color } : {}} />
+          <span className="truncate font-bold">{board?.name ?? 'No subject'}</span>
+          <ChevronDown size={13} className="shrink-0 opacity-60" />
+          <select
+            className="absolute inset-0 cursor-pointer opacity-0"
+            value={board?.id ?? ''}
+            onChange={(e) => void engine.resubject(t.id, e.target.value || null, current?.id)}
+            aria-label="Subject for this session"
+          >
+            <option value="">No subject</option>
+            {boards.map((b) => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </label>
         {t.label && t.label !== board?.name && <span className="truncate font-hand text-[17px] text-ink/70">· {t.label}</span>}
         {showTasks && stack.length > 1 && (
           <button
@@ -491,43 +525,47 @@ function WorkingOn({ t }: { t: TimerState }) {
                 className={cx('grid transition-[grid-template-rows,opacity] duration-300 ease-out', collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100')}
                 aria-hidden={collapsed}
               >
-                <div className="overflow-hidden">
-                  <ul className="max-h-48 space-y-1 overflow-y-auto pt-1">
-                    {stack.slice(1).map((x) => (
-                      <TaskRow key={x.id} task={x} onDone={() => void toggle(x.id, true)} onPick={() => void engine.retask(t.id, x.id)} />
-                    ))}
+                <div className="-mx-4 overflow-hidden px-4">
+                  {/* Both boxes clip, so each reaches into the card's padding to keep the drag grips (in the row margin) visible. */}
+                  <ul className="-ml-4 max-h-48 space-y-1 overflow-y-auto pl-4 pt-1">
+                    <SortableTasks tasks={rest}>
+                      {(ordered) =>
+                        ordered.map((x) => (
+                          <TaskRow key={x.id} task={x} onDone={() => void toggle(x.id, true)} onPick={() => void engine.retask(t.id, x.id)} />
+                        ))
+                      }
+                    </SortableTasks>
                   </ul>
-                  <form className="mt-1 flex items-center gap-3" onSubmit={(e) => { e.preventDefault(); addTask(); }}>
-                    <span className="h-6 w-6 shrink-0 rounded-full border-2 border-dashed border-ink/25" />
-                    <input
-                      className="min-w-0 flex-1 bg-transparent font-hand text-[19px] leading-tight outline-none placeholder:text-ink/30"
-                      placeholder="add a task…"
-                      value={newTitle}
-                      tabIndex={collapsed ? -1 : 0}
-                      onChange={(e) => setNewTitle(e.target.value)}
-                    />
-                  </form>
+                  {addForm}
                 </div>
               </div>
             </>
           )}
+          {stack.length === 0 && addForm}
         </>
       )}
     </div>
   );
 }
 
+/** The task in hand (`first`) or one of the rest, which can be dragged into a new order. Hold a title to rename it. */
 function TaskRow({ task, first, onDone, onPick }: { task: Task; first?: boolean; onDone: () => void; onPick?: () => void }) {
-  return (
-    <li className={cx('flex list-none items-center gap-3', first && 'mt-1')}>
+  const body = (
+    <>
       <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink/40 hover:border-leaf" onClick={onDone} aria-label={`Mark "${task.title}" done`} />
-      <button
-        className={cx('flex-1 truncate text-left font-hand leading-tight', first ? 'text-[22px]' : 'text-[19px] text-ink/70 hover:text-ink')}
-        onClick={onPick}
-        title={onPick ? 'Work on this one now' : undefined}
-      >
-        {task.title}
-      </button>
-    </li>
+      <TaskTitle
+        task={task}
+        trigger="hold"
+        onPick={onPick}
+        title={onPick ? 'Work on this one now · hold to rename' : 'Hold to rename'}
+        className={cx('min-w-0 flex-1 truncate font-hand leading-tight', first ? 'text-[22px]' : 'text-[19px] text-ink/70 hover:text-ink')}
+      />
+    </>
+  );
+  if (first) return <li className="mt-1 flex list-none items-center gap-3">{body}</li>;
+  return (
+    <SortableRow id={task.id} className="flex list-none items-center gap-3">
+      {body}
+    </SortableRow>
   );
 }

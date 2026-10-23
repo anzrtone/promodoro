@@ -1,7 +1,7 @@
 /**
  * PromodoroCard — the main timer, drawn as a sticky note taped to a notebook page.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Check, ChevronDown, Coffee, FastForward, Flame, History, Maximize2, MoreHorizontal, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
@@ -83,12 +83,25 @@ export function PromodoroCard({ compact = false }: { compact?: boolean }) {
     } else if (settings.pomoTalks) say(mood);
   };
 
+  // While a session runs, a tap on the card's empty space opens focus mode (like the Focus mode chip).
+  // Pomo, the controls and any sheet opened from the card keep their own clicks.
+  const enterFocus = !compact && primary;
+  const onCardClick = (e: ReactMouseEvent) => {
+    const el = e.target as Element;
+    if (el.closest('button, a, input, select, textarea, label, [role="dialog"], [data-no-focus]')) return;
+    if (window.getSelection()?.toString()) return;
+    setFocusMode(true);
+  };
+
   return (
-    <div className={cx('sticky-note relative mx-auto w-full', compact ? 'p-3' : 'max-w-[560px] px-5 pb-6 pt-7 sm:px-8')}>
+    <div
+      className={cx('sticky-note relative mx-auto w-full', compact ? 'p-3' : 'max-w-[560px] px-5 pb-6 pt-7 sm:px-8', enterFocus && 'cursor-zoom-in [&_[role=dialog]]:cursor-auto')}
+      onClick={enterFocus ? onCardClick : undefined}
+    >
       {!compact && <div className="washi" />}
       <div className={cx('flex flex-col items-center', compact ? 'gap-1' : 'gap-3')}>
         {primary && <PhaseRow t={primary} compact={compact} />}
-        <div className="relative">
+        <div className="relative cursor-auto" data-no-focus>
           <Pomo
             mood={pokeMood ?? mood}
             size={compact ? 76 : 184}
@@ -162,18 +175,21 @@ function RunningPanel({ t, snap, compact, ringing }: { t: TimerState; snap: Time
 
   return (
     <>
-      <div className={cx('relative text-center', snap.inOvertime && 'rounded-card bg-halo/50 px-4')}>
-        <div
-          className={cx('font-display font-semibold leading-none tabular', compact ? 'text-5xl' : 'text-[clamp(64px,17vw,104px)]', paused && 'opacity-60')}
-          aria-live="off"
-        >
-          {big}
+      {/* The clock block is a dead zone for the card's tap-to-focus: people scrub the time here. */}
+      <div className={cx('flex w-full max-w-[400px] cursor-auto flex-col items-center', compact ? 'gap-1' : 'gap-3')} data-no-focus>
+        <div className={cx('relative text-center', snap.inOvertime && 'rounded-card bg-halo/50 px-4')}>
+          <div
+            className={cx('font-display font-semibold leading-none tabular', compact ? 'text-5xl' : 'text-[clamp(64px,17vw,104px)]', paused && 'opacity-60')}
+            aria-live="off"
+          >
+            {big}
+          </div>
+          <div className={cx('font-hand text-ink/70', compact ? 'text-base' : 'mt-1 text-[20px]')}>{sub}</div>
+          {recovered && !compact && <div className="text-xs text-ink/50">{recovered}</div>}
         </div>
-        <div className={cx('font-hand text-ink/70', compact ? 'text-base' : 'mt-1 text-[20px]')}>{sub}</div>
-        {recovered && !compact && <div className="text-xs text-ink/50">{recovered}</div>}
-      </div>
 
-      {hasTarget && !compact && <InkProgress value={snap.progress} overtime={snap.inOvertime} rest={brk} />}
+        {hasTarget && !compact && <InkProgress value={snap.progress} overtime={snap.inOvertime} rest={brk} />}
+      </div>
 
       {ringing && (
         <button className="btn-soft animate-wiggle" onClick={() => engine.silence()}>

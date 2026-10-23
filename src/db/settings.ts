@@ -92,6 +92,9 @@ export const SYNCED_PREFS = [
   'showTasks',
 ] as const satisfies ReadonlyArray<keyof AppSettings>;
 
+/** Ring the alarm, just buzz, or stay out of the way entirely. */
+export type OvertimeAlert = 'sound' | 'vibrate' | 'none';
+
 export interface AppSettings {
   presetId: string;
   /** Gentle Flow (overtime) by default: the timer never interrupts your flow. */
@@ -109,6 +112,8 @@ export interface AppSettings {
   silent: boolean;
   /** Repeat the alarm several times until dismissed. Off = play once (default). */
   alarmRepeat: boolean;
+  /** What happens when a timer that keeps counting (Gentle Flow, overtime goal) reaches its goal. */
+  overtimeAlert: OvertimeAlert;
   ambient: AmbientId | null;
   ambientVolume: number;
   ambientAutoplay: boolean;
@@ -190,6 +195,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   vibrate: true,
   silent: false,
   alarmRepeat: false,
+  overtimeAlert: 'vibrate',
   ambient: null,
   ambientVolume: 0.35,
   ambientAutoplay: false,

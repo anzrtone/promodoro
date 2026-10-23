@@ -58,6 +58,10 @@ export default {
         pageIn: { '0%': { opacity: '0', transform: 'translateX(18px) rotate(0.6deg)' }, '100%': { opacity: '1', transform: 'none' } },
         // A dropped item settles into its new spot with a brief warm glow.
         land: { '0%': { transform: 'scale(0.94)', backgroundColor: 'rgb(var(--pm-halo))' }, '45%': { transform: 'scale(1.02)' }, '100%': { transform: 'scale(1)' } },
+        // A task line opens up, then the words are written in from the left.
+        taskIn: { '0%': { maxHeight: '0', opacity: '0', transform: 'translateX(-10px)' }, '45%': { maxHeight: '48px', opacity: '0', transform: 'translateX(-10px)' }, '100%': { maxHeight: '48px', opacity: '1', transform: 'none' } },
+        // ...and a deleted one slides off the page before its line closes up.
+        taskOut: { '0%': { maxHeight: '48px', opacity: '1', transform: 'none' }, '55%': { maxHeight: '48px', opacity: '0', transform: 'translateX(24px) rotate(1.5deg)' }, '100%': { maxHeight: '0', opacity: '0', transform: 'translateX(24px) rotate(1.5deg)' } },
       },
       animation: {
         bob: 'bob 3.2s ease-in-out infinite',
@@ -71,6 +75,8 @@ export default {
         breathe: 'breathe 6s ease-in-out infinite',
         pageIn: 'pageIn 0.35s ease-out both',
         land: 'land 0.7s cubic-bezier(.2,.9,.3,1.2)',
+        'task-in': 'taskIn 0.38s cubic-bezier(.2,.8,.3,1) both',
+        'task-out': 'taskOut 0.32s ease-in both',
       },
     },
   },

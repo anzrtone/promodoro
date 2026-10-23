@@ -22,6 +22,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { RemoveTaskButton, SortableRow, SortableTasks, TaskTitle } from '@/components/TaskList';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { Archive, ChevronDown, ChevronRight, Folder as FolderIcon, FolderPlus, GripVertical, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { db } from '@/db/schema';
@@ -32,6 +33,7 @@ import {
   addNote,
   addSubject,
   addTask,
+  byTaskOrder,
   moveFolder,
   moveSubject,
   removeFolder,
@@ -748,7 +750,7 @@ const ownedBy = (x: { boardId?: string; folderId?: string }, o: Owner) => (o.kin
 
 function TasksBlock({ owner, inside, nameOf }: { owner: Owner; inside: Owner[]; nameOf: (o: Owner) => string }) {
   const all = [owner, ...inside];
-  const tasks = useLiveQuery(() => db.tasks.orderBy('createdAt').toArray(), [], []);
+  const tasks = useLiveQuery(async () => (await db.tasks.toArray()).sort(byTaskOrder), [], []);
   const [text, setText] = useState('');
   const [showDone, setShowDone] = useState(false);
   const recent = Date.now() - DAY;
@@ -778,9 +780,7 @@ function TasksBlock({ owner, inside, nameOf }: { owner: Owner; inside: Owner[]; 
         <div key={ownerKey(o)}>
           {i > 0 && <span className="label mt-2">{nameOf(o)}</span>}
           <ul>
-            {items.map((t) => (
-              <TaskRow key={t.id} task={t} />
-            ))}
+            <SortableTasks tasks={items}>{(ordered) => ordered.map((t) => <TaskRow key={t.id} task={t} />)}</SortableTasks>
           </ul>
         </div>
       ))}
@@ -802,7 +802,7 @@ function TasksBlock({ owner, inside, nameOf }: { owner: Owner; inside: Owner[]; 
 export function TaskRow({ task: t, tag }: { task: Task; tag?: ReactNode }) {
   const toggle = () => append([{ type: 'task.done', ts: Date.now(), data: { taskId: t.id, done: !t.done } } as PendingEvent]);
   return (
-    <li className="group flex h-[34px] items-center gap-2">
+    <SortableRow id={t.id} className="flex h-[34px] items-center gap-2">
       <button
         onClick={() => void toggle()}
         className={cx('flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-2 transition', t.done ? 'border-leaf bg-leaf text-white' : 'border-ink/40')}
@@ -810,12 +810,10 @@ export function TaskRow({ task: t, tag }: { task: Task; tag?: ReactNode }) {
       >
         {t.done && '✓'}
       </button>
-      <span className={cx('flex-1 truncate font-hand text-[19px] leading-none', t.done && 'text-ink/40 line-through decoration-tomato/70')}>{t.title}</span>
+      <TaskTitle task={t} className={cx('min-w-0 flex-1 truncate font-hand text-[19px] leading-none', t.done && 'text-ink/40 line-through decoration-tomato/70')} />
       {tag}
-      <button className="opacity-0 transition group-hover:opacity-100 max-sm:opacity-60" onClick={() => db.tasks.delete(t.id)} aria-label="Delete task">
-        <X size={14} className="text-ink/40" />
-      </button>
-    </li>
+      <RemoveTaskButton id={t.id} />
+    </SortableRow>
   );
 }
 

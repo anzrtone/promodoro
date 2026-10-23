@@ -252,14 +252,25 @@ class Engine {
         }
       }
     }
-    this.publish({ notices, wrap, cheerAt });
+    // A "kept counting" notice only makes sense while its timer is still counting: once it
+    // finishes (or is discarded) the overtime it reports is over, so let it go.
+    const live = notices.filter((n) => n.stopped || this.timers.has(n.timerId));
+    this.publish({ notices: live, wrap, cheerAt });
     await this.syncNative();
+  }
+
+  /** How loudly a timer announces its goal: overtime timers follow the "When a timer goes into overtime" setting. */
+  private alertFor(t: TimerState): { sound: boolean; buzz: boolean; quiet: boolean } {
+    const s = this.settings;
+    const mode = t.overtime ? s.overtimeAlert : 'sound';
+    return { sound: mode === 'sound' && !s.silent, buzz: mode !== 'none' && s.vibrate, quiet: mode === 'none' };
   }
 
   private ring(t: TimerState, key: string) {
     const s = this.settings;
-    platform().vibrate('alarm');
-    if (s.silent) return alarmQueue.markHandled(key);
+    const a = this.alertFor(t);
+    if (a.buzz) platform().vibrate('alarm');
+    if (!a.sound) return alarmQueue.markHandled(key);
     // On Android the notification channel plays the sound for on-time alarms (foreground
     // too), so the in-app queue stays quiet to avoid ringing twice.
     if (platform().nativeAlarmSound()) return alarmQueue.markHandled(key);
@@ -270,7 +281,6 @@ class Engine {
   /* ---------- native sync ---------- */
 
   private async syncNative() {
-    const s = this.settings;
     const specs: AlarmSpec[] = [];
     for (const t of this.timers.values()) {
       const at = nextAlarmAt(t);
@@ -284,7 +294,8 @@ class Engine {
           : isBreak(t.phase)
             ? 'Break is over. Ready when you are.'
             : `${name} is done.`;
-      specs.push({ id: t.id, at, title: `🍅 ${name}`, body, soundId: this.soundFor(t), silent: s.silent, vibrate: s.vibrate });
+      const a = this.alertFor(t);
+      specs.push({ id: t.id, at, title: `🍅 ${name}`, body, soundId: this.soundFor(t), silent: !a.sound, vibrate: a.buzz, quiet: a.quiet });
     }
     try {
       await platform().syncAlarms(specs);
@@ -411,6 +422,27 @@ class Engine {
   adjust = (id: string, ms: number) => this.ev(id, 'timer.adjust', { ms });
   /** Change the task being worked on mid-session. Pass undefined to clear it. */
   retask = (id: string, taskId: string | undefined) => this.ev(id, 'timer.retask', { taskId });
+  /**
+   * Move a running session to another subject (from focus mode). The subject also becomes
+   * the one picked for next time, and the task in hand goes along if it had no home yet.
+   */
+  async resubject(id: string, boardId: string | null, taskId = this.timers.get(id)?.taskId) {
+    const t = this.timers.get(id);
+    if (!t) return;
+    const from = t.boardId ? this.boards.find((b) => b.id === t.boardId) : undefined;
+    const to = boardId ? this.boards.find((b) => b.id === boardId) : undefined;
+    const label = !t.label || t.label === from?.name ? to?.name : t.label;
+    const task = taskId ? await db.tasks.get(taskId) : undefined;
+    const carry = !!task && !task.boardId && !task.folderId;
+    if (carry && boardId) await db.tasks.update(task.id, { boardId, today: true });
+    await updateSettings({ boardId });
+    const ts = Date.now();
+    await this.commit([
+      { type: 'timer.subject', ts, timerId: id, data: { boardId, label } } as PendingEvent,
+      ...(carry ? [{ type: 'timer.retask', ts, timerId: id, data: { taskId: task.id } } as PendingEvent] : []),
+    ]);
+    await this.settle();
+  }
   overtime = (id: string, on: boolean, softTargetMin?: number) =>
     this.ev(id, 'timer.overtime', { on, softTargetMs: softTargetMin !== undefined ? softTargetMin * MINUTE : undefined });
 

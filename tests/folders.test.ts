@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import Dexie from 'dexie';
 import { db, PromodoroDB } from '@/db/schema';
-import { addFolder, addNote, addSubject, addTask, moveFolder, removeFolder, removeSubject, setFolderArchived } from '@/db/folders';
+import { addFolder, addNote, addSubject, addTask, byTaskOrder, moveFolder, renameTask, reorderTasks, removeFolder, removeSubject, setFolderArchived } from '@/db/folders';
 import { exportJSON, importJSON } from '@/db/backup';
 import { canMoveFolder, depthOf, folderPath, groupSubjects } from '@/engine/folders';
 import type { Board, Folder } from '@/engine/types';
@@ -120,5 +120,27 @@ describe('backups and upgrades', () => {
     await v2.folders.put({ id: 'f', name: 'F', color: '#000', order: 0 });
     expect(await v2.boards.where('folderId').equals('f').count()).toBe(0);
     v2.close();
+  });
+});
+
+describe('task order and names', () => {
+  const list = async () => (await db.tasks.toArray()).sort(byTaskOrder).map((t) => t.title);
+
+  it('reorders a visible list without disturbing tasks outside it', async () => {
+    for (const title of ['a', 'b', 'c', 'd']) {
+      await addTask(title, title === 'c' ? { kind: 'subject', id: 's2' } : { kind: 'subject', id: 's1' });
+      await new Promise((r) => setTimeout(r, 2));
+    }
+    // The s1 view shows a, b, d; drag d to the top.
+    const s1 = (await db.tasks.where('boardId').equals('s1').toArray()).sort(byTaskOrder);
+    await reorderTasks([s1[2], s1[0], s1[1]]);
+    expect(await list()).toEqual(['d', 'a', 'c', 'b']);
+  });
+
+  it('renames, ignoring blank titles', async () => {
+    const id = await addTask('old', null, { today: true });
+    await renameTask(id, '  new  ');
+    await renameTask(id, '   ');
+    expect(await db.tasks.get(id)).toMatchObject({ title: 'new', today: true });
   });
 });

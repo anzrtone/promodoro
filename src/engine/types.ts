@@ -56,6 +56,8 @@ export type EventMap = {
   'timer.note': { note?: string; mood?: Mood };
   /** Change the task being focused on mid-session; undefined clears it. */
   'timer.retask': { taskId?: string };
+  /** Move the session to another subject (null = none); `label` follows when it was the subject's name. */
+  'timer.subject': { boardId: string | null; label?: string };
   'session.manual': ManualSessionPayload;
   'session.edit': { sessionId: string; patch: Partial<Pick<Session, 'label' | 'boardId' | 'note' | 'mood'>> };
   'session.delete': { sessionId: string };
@@ -231,7 +233,12 @@ export interface Task {
   boardId?: string;
   folderId?: string;
   createdAt: number;
-  doneAt?: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
+  /** Put on "Today's focus tasks" (added there or from focus mode): it stays on the note when moved to another subject. */
+  today?: boolean;
+  /** Position set by dragging; tasks never dragged fall back to creation time. */
+  order?: number;
+  doneAt?: number;
+  /** Last change, for cross-device sync (stamped automatically by the database). */
   updatedAt?: number;
 }
 

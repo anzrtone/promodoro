@@ -28,21 +28,29 @@ function notifId(id: string): number {
   return 1000 + (Math.abs(h) % 2_000_000_000);
 }
 
-const channelFor = (a: AlarmSpec) => (a.silent ? 'alarm_silent' : `alarm_${a.soundId}`);
+/**
+ * Channels are fixed once created (Android ignores later changes), so each sound /
+ * vibration combination gets its own. These channels belong to Promodoro only: they
+ * never touch the phone's own ringtone or notification sound.
+ */
+const channelFor = (a: AlarmSpec) =>
+  a.quiet ? 'alarm_quiet' : a.silent ? 'alarm_silent' : a.vibrate ? `alarm_${a.soundId}` : `alarm_${a.soundId}_still`;
 
 async function ensureChannels() {
   for (const s of SOUNDS) {
-    await LocalNotifications.createChannel({
-      id: `alarm_${s.id}`,
-      name: `Alarm · ${s.name}`,
-      description: 'Rings when a Promodoro timer reaches its goal.',
-      importance: 5,
-      visibility: 1,
-      sound: `${s.id}.wav`,
-      vibration: true,
-      lights: true,
-      lightColor: '#EE6B6E',
-    });
+    for (const vibration of [true, false]) {
+      await LocalNotifications.createChannel({
+        id: vibration ? `alarm_${s.id}` : `alarm_${s.id}_still`,
+        name: `Alarm · ${s.name}${vibration ? '' : ' (no vibration)'}`,
+        description: 'Rings when a Promodoro timer reaches its goal.',
+        importance: 5,
+        visibility: 1,
+        sound: `${s.id}.wav`,
+        vibration,
+        lights: true,
+        lightColor: '#EE6B6E',
+      });
+    }
   }
   await LocalNotifications.createChannel({
     id: 'alarm_silent',
@@ -51,6 +59,15 @@ async function ensureChannels() {
     visibility: 1,
     sound: 'silence.wav',
     vibration: true,
+  });
+  await LocalNotifications.createChannel({
+    id: 'alarm_quiet',
+    name: 'Goal reached · quiet',
+    description: 'A silent note when a timer that keeps counting reaches its goal.',
+    importance: 2,
+    visibility: 1,
+    sound: 'silence.wav',
+    vibration: false,
   });
   await LocalNotifications.createChannel({
     id: 'status',

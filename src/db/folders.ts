@@ -99,8 +99,32 @@ export async function removeSubject(id: string): Promise<void> {
   });
 }
 
-export async function addTask(title: string, owner: Owner | null): Promise<void> {
-  await db.tasks.put({ id: uid('task'), title, done: false, createdAt: Date.now(), ...ownerFields(owner) });
+export async function addTask(title: string, owner: Owner | null, extra: { today?: boolean } = {}): Promise<string> {
+  const id = uid('task');
+  await db.tasks.put({ id, title, done: false, createdAt: Date.now(), ...ownerFields(owner), ...(extra.today ? { today: true } : {}) });
+  return id;
+}
+
+export async function renameTask(id: string, title: string): Promise<void> {
+  const t = title.trim();
+  if (t) await db.tasks.update(id, { title: t });
+}
+
+/** Task list order: dragged position, else creation time. */
+export const byTaskOrder = (a: Task, b: Task) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt);
+
+/**
+ * Save a list the user just reordered. The list's own order keys are handed back out in
+ * the new sequence, so tasks hidden from this view (another subject, finished ones)
+ * keep their place relative to it.
+ */
+export async function reorderTasks(ordered: Task[]): Promise<void> {
+  const keys = ordered.map((t) => t.order ?? t.createdAt).sort((a, b) => a - b);
+  // Equal keys (tasks created in the same millisecond) would not move: spread them apart.
+  for (let i = 1; i < keys.length; i++) if (keys[i] <= keys[i - 1]) keys[i] = keys[i - 1] + 1;
+  await db.transaction('rw', db.tasks, async () => {
+    for (let i = 0; i < ordered.length; i++) if ((ordered[i].order ?? ordered[i].createdAt) !== keys[i]) await db.tasks.update(ordered[i].id, { order: keys[i] });
+  });
 }
 
 export async function addNote(owner: Owner): Promise<string> {

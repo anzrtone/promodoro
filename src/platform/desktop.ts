@@ -38,7 +38,7 @@ export const desktop: Platform = {
 
   async syncAlarms(alarms: AlarmSpec[]) {
     await invoke('schedule_alarms', {
-      alarms: alarms.map((a) => ({ id: a.id, atMs: a.at, title: a.title, body: a.body })),
+      alarms: alarms.map((a) => ({ id: a.id, atMs: a.at, title: a.title, body: a.body, quiet: a.quiet })),
     });
   },
 

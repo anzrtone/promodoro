@@ -12,8 +12,11 @@ export interface AlarmSpec {
   title: string;
   body: string;
   soundId: string;
+  /** No alarm sound. */
   silent: boolean;
   vibrate: boolean;
+  /** No sound, no buzz, no pop-up: the goal is only noted quietly (overtime set to "Nothing"). */
+  quiet: boolean;
 }
 
 export interface StatusSpec {

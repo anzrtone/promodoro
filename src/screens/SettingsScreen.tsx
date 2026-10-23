@@ -5,11 +5,11 @@ import { AMBIENTS } from '@/audio/catalog';
 import { previewSound, setAmbient, currentAmbient, unlockAudio } from '@/audio/engine';
 import { isSoundId } from '@/audio/catalog';
 import { db } from '@/db/schema';
-import { updateSettings, useSettings, type AccessoryId, type ThemeId } from '@/db/settings';
+import { updateSettings, useSettings, type AccessoryId, type OvertimeAlert, type ThemeId } from '@/db/settings';
 import { uid } from '@/engine/time';
 import type { ModeChoice, Preset } from '@/engine/types';
 import { isSupporter, verifyLicense } from '@/features/license';
-import { navigate, useNav } from '@/features/nav';
+import { useNav } from '@/features/nav';
 import { toast } from '@/features/toasts';
 import { openLink, platform } from '@/platform';
 import { Pomo } from '@/components/Pomo';
@@ -26,12 +26,12 @@ import { DangerZone } from '@/components/DangerZone';
 import { UpdateBanner } from '@/components/UpdatePill';
 import { openDevLog } from '@/features/devlog';
 import { checkForUpdates, currentVersion } from '@/features/updates';
-import { DISCORD_INVITE, RELEASES_API } from '@/config/updates';
+import { DISCORD_INVITE, RELEASES_API, SUPPORT_URL } from '@/config/updates';
+import supportIcon from '@/assets/supportkori.png';
 import { DiscordIcon } from '@/components/DiscordIcon';
 import { cx, Section, Segmented, Slider, Stepper, Toggle } from '@/components/ui';
 
 /** Where supporters can buy a key / tip. Change to your own page. */
-export const SUPPORT_URL = 'https://ko-fi.com/';
 
 const THEMES: Array<{ id: ThemeId; name: string; free: boolean; swatch: string[] }> = [
   { id: 'classic', name: 'Classic notebook', free: true, swatch: ['#FDFBF7', '#F5EFE0', '#EE6B6E', '#F4A2A2'] },
@@ -79,7 +79,6 @@ export function SettingsScreen() {
           <ProfileSettings />
           <TimerSettings />
           <SoundSettings />
-          <BoardSettings />
           <AppearanceSettings />
           <div ref={dataRef} className="space-y-4 scroll-mt-4">
             <BackupPanel />
@@ -177,6 +176,11 @@ function TimerSettings() {
   const s = useSettings();
   const presets = useLiveQuery(() => db.presets.orderBy('order').filter((p) => !p.once).toArray(), [], []);
   const savePreset = (p: Preset) => db.presets.put(p);
+  const deletePreset = async (id: string) => {
+    await db.presets.delete(id);
+    // Don't leave the timer on a preset that no longer exists.
+    if (s.presetId === id) await updateSettings({ presetId: presets.find((p) => p.id !== id)!.id });
+  };
   return (
     <Section title="Timer">
       <div className="mb-3">
@@ -254,8 +258,9 @@ function TimerSettings() {
                 rounds
                 <Stepper value={p.rounds} max={12} onChange={(v) => void savePreset({ ...p, rounds: v })} />
               </label>
-              {!p.builtin && (
-                <button className="btn-ghost !p-2" onClick={() => db.presets.delete(p.id)} aria-label="Delete preset">
+              {/* Any preset can go, as long as one is left to time with. */}
+              {presets.length > 1 && (
+                <button className="btn-ghost !p-2" onClick={() => void deletePreset(p.id)} aria-label="Delete preset">
                   <Trash2 size={15} />
                 </button>
               )}
@@ -318,7 +323,24 @@ function SoundSettings() {
       <Toggle checked={s.vibrate} onChange={(v) => void updateSettings({ vibrate: v })} label="Vibrate" />
       <Toggle checked={s.silent} onChange={(v) => void updateSettings({ silent: v })} label="Silent + vibrate" hint="No alarm audio at all, just a buzz and a notification." />
       <Toggle checked={s.alarmRepeat} onChange={(v) => void updateSettings({ alarmRepeat: v })} label="Repeat alarm" hint="Rings several times until you're back. Off = plays once and stops." />
-      {platform().kind === 'android' && <p className="text-xs text-ink/55">When the screen is off, Android plays alarms through the notification channel at your phone's notification volume.</p>}
+      <div className="py-2">
+        <span className="label">When a timer goes into overtime</span>
+        <Segmented<OvertimeAlert>
+          size="sm"
+          value={s.overtimeAlert}
+          onChange={(v) => void updateSettings({ overtimeAlert: v })}
+          options={[
+            { value: 'sound', label: 'Ring' },
+            { value: 'vibrate', label: platform().kind === 'desktop' ? 'Notify only' : 'Vibrate only' },
+            { value: 'none', label: 'Nothing' },
+          ]}
+        />
+        <p className="mt-1 text-xs text-ink/55">
+          For Gentle Flow and overtime goals: the timer keeps counting either way.{' '}
+          {s.overtimeAlert === 'sound' ? 'Plays your alarm sound at the goal.' : s.overtimeAlert === 'vibrate' ? (platform().kind === 'desktop' ? 'A notification, no sound.' : 'A buzz and a notification, no sound.') : 'No sound, no buzz, no pop-up.'}
+        </p>
+      </div>
+      {platform().kind === 'android' && <p className="text-xs text-ink/55">Alarms use Promodoro's own notification channels, so your phone's other sounds are never changed. When the screen is off, Android plays alarms through the notification channel at your phone's notification volume.</p>}
 
       <div className="mt-3">
         <span className="label">Ambient sound while you focus</span>
@@ -356,16 +378,6 @@ function SoundSettings() {
   );
 }
 
-function BoardSettings() {
-  return (
-    <Section title="Subjects & folders">
-      <p className="mb-2 text-sm text-ink/65">Subjects, folders, and their tasks and notes now have their own tab.</p>
-      <button className="btn-soft" onClick={() => navigate('subjects')}>
-        Manage in Subjects tab →
-      </button>
-    </Section>
-  );
-}
 
 function AppearanceSettings() {
   const s = useSettings();
@@ -468,9 +480,9 @@ function SupporterSettings() {
           >
             Unlock
           </button>
-          <a className="btn-soft" href={SUPPORT_URL} target="_blank" rel="noreferrer">
-            Get a key / tip jar
-          </a>
+          <button className="pill gap-2 px-4 py-2 text-sm font-bold text-ink hover:bg-halo" onClick={() => void openLink(SUPPORT_URL)} title="Support the developer on Kori">
+            <img src={supportIcon} alt="" width={20} height={20} className="rounded-md" /> Support me
+          </button>
         </div>
       )}
     </Section>

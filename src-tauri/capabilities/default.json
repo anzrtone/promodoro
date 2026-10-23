@@ -12,7 +12,7 @@
     "dialog:allow-open",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/*" }, { "url": "https://discord.gg/*" }, { "url": "https://www.supportkori.com/*" }, { "url": "mailto:*" }]
+      "allow": [{ "url": "https://github.com/*" }, { "url": "https://discord.gg/*" }, { "url": "https://supportkori.com/*" }, { "url": "https://www.supportkori.com/*" }, { "url": "mailto:*" }]
     }
   ]
 }

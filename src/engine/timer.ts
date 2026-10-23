@@ -164,6 +164,9 @@ export function applyEvent(s: TimerState | null, e: AnyEvent): TimerState | null
     case 'timer.retask':
       return { ...base, taskId: e.data.taskId };
 
+    case 'timer.subject':
+      return { ...base, boardId: e.data.boardId ?? undefined, label: e.data.label };
+
     default:
       return s;
   }

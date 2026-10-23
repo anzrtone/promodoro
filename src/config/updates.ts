@@ -22,4 +22,4 @@ export const ISSUES_URL = `https://github.com/${UPSTREAM_REPO}/issues`;
 export const CONTACT_EMAIL = 'ranzarsharif@gmail.com';
 export const DISCORD_HANDLE = '@arvenine';
 export const DISCORD_INVITE = 'https://discord.gg/k8pcRZkeEp';
-export const SUPPORT_URL = 'https://www.supportkori.com/anzar';
+export const SUPPORT_URL = 'https://supportkori.com/anzar';

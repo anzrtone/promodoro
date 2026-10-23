@@ -22,6 +22,9 @@ pub struct Alarm {
     pub at_ms: i64,
     pub title: String,
     pub body: String,
+    /// No toast and no taskbar flash: the UI is still told so the goal is recorded.
+    #[serde(default)]
+    pub quiet: bool,
 }
 
 #[derive(Default)]
@@ -68,14 +71,16 @@ pub fn start(app: AppHandle) {
         thread::sleep(Duration::from_millis(250));
         let due = app.state::<Scheduler>().take_due(now_ms());
         for alarm in due {
-            let _ = app
-                .notification()
-                .builder()
-                .title(&alarm.title)
-                .body(&alarm.body)
-                .show();
-            if let Some(win) = app.get_webview_window("main") {
-                let _ = win.request_user_attention(Some(UserAttentionType::Informational));
+            if !alarm.quiet {
+                let _ = app
+                    .notification()
+                    .builder()
+                    .title(&alarm.title)
+                    .body(&alarm.body)
+                    .show();
+                if let Some(win) = app.get_webview_window("main") {
+                    let _ = win.request_user_attention(Some(UserAttentionType::Informational));
+                }
             }
             let _ = app.emit("alarm-fired", alarm.id.clone());
         }
