@@ -7,7 +7,7 @@
 <!--
   B-roll control room. With `npm run dev` running, open this file in a browser (or serve the folder),
   pick a clip, and screen-capture the phone (OBS: Window/Browser capture cropped to the frame).
-  "Clean" hides everything but the 375×812 screen, for a chroma/plain-background capture.
+  "Clean" hides everything but the 414×736 (9:16) screen, for a chroma/plain-background capture.
   The clips themselves live in src/dev/broll/clips.ts; each runs the real app at /?broll=<clip>.
 -->
 <style>
@@ -26,12 +26,12 @@
   .row { display: flex; gap: 8px; align-items: center; margin-top: 14px; flex-wrap: wrap; font-size: 13px; }
   .row input[type=number] { width: 64px; padding: 4px 6px; border-radius: 8px; border: 1px solid var(--rule); }
   #state { font-size: 12px; color: rgb(45 49 46 / 0.6); margin-top: 10px; min-height: 1.4em; }
-  .phone { width: 399px; height: 836px; padding: 12px; border-radius: 56px; background: #1d1f1e; box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.5); flex-shrink: 0; }
-  .screen { width: 375px; height: 812px; border-radius: 44px; overflow: hidden; background: #fdfbf7; }
-  iframe { width: 375px; height: 812px; border: 0; display: block; }
+  .phone { width: 438px; height: 760px; padding: 12px; border-radius: 56px; background: #1d1f1e; box-shadow: 0 30px 60px -30px rgb(0 0 0 / 0.5); flex-shrink: 0; }
+  .screen { width: 414px; height: 736px; border-radius: 44px; overflow: hidden; background: #fdfbf7; }
+  iframe { width: 414px; height: 736px; border: 0; display: block; }
   body.clean { background: #00b140; }
   body.clean .panel { display: none; }
-  body.clean .phone { padding: 0; background: none; box-shadow: none; border-radius: 0; width: 375px; height: 812px; }
+  body.clean .phone { padding: 0; background: none; box-shadow: none; border-radius: 0; width: 414px; height: 736px; }
   body.clean .screen { border-radius: 0; }
   @media (max-width: 460px) { .phone { transform: scale(0.8); transform-origin: top center; margin-bottom: -170px; } }
 </style>

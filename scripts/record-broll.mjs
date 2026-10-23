@@ -4,7 +4,7 @@
  *
  *   npm run dev                       # in one terminal
  *   npm run broll:record              # all clips → broll/out/<clip>.mp4
- *   npm run broll:record -- stats flow --pace 1.15 --size 1080x1920
+ *   npm run broll:record -- stats flow --pace 1.15 --size 2160x3840
  *
  * Frames come straight from Chromium's compositor (CDP screencast, JPEG q95) and are encoded with
  * their real timestamps, so a clip plays back at exactly the speed it ran. Needs Playwright
@@ -13,11 +13,13 @@
  * Options:
  *   --url <base>      dev server (default http://localhost:1420)
  *   --out <dir>       output folder (default broll/out)
- *   --viewport WxH    CSS viewport of the phone (default 375x812)
- *   --size WxH        output video size (default: viewport × 2, i.e. 750x1624). A 9:16 size like
- *                     1080x1920 letterboxes nothing: the viewport is changed to match (360x640).
+ *   --viewport WxH    CSS viewport of the phone (default 414x736, 9:16)
+ *   --size WxH        output video size (default 1080x1920, 9:16). If its shape differs from the
+ *                     viewport's, the viewport height is adjusted to match, so nothing is letterboxed.
  *   --pace <n>        stretch every beat (1.2 = 20 % slower)
  *   --fps <n>         output frame rate (default 60)
+ *   --tz <IANA zone>  phone's timezone. Default: a zone where it's early afternoon right now, because the demo
+ *                     notebook places today's sessions a few hours before "now" (at 2 AM, today would be empty).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -48,16 +50,27 @@ const out = resolve(opt('out', 'broll/out'));
 const pace = Number(opt('pace', '1'));
 const fps = Number(opt('fps', '60'));
 const wxh = (s) => s.split('x').map(Number);
-let [vw, vh] = wxh(opt('viewport', '375x812'));
+// Default: a 9:16 phone (414×736 CSS px) rendered at 1080×1920, so clips drop into a vertical edit with no bars.
+let [vw, vh] = wxh(opt('viewport', '414x736'));
 const sizeArg = opt('size', null);
-let [ow, oh] = (sizeArg ? wxh(sizeArg) : [vw * 2, vh * 2]).map((n) => n - (n % 2)); // x264 needs even sides
-if (sizeArg && Math.abs(ow / oh - vw / vh) > 0.01) {
+let [ow, oh] = (sizeArg ? wxh(sizeArg) : [1080, 1920]).map((n) => n - (n % 2)); // x264 needs even sides
+if (Math.abs(ow / oh - vw / vh) > 0.01) {
   // Keep the phone's width and give it the output's shape, so nothing is stretched or letterboxed.
-  vw = 360;
-  vh = Math.round((360 * oh) / ow);
+  vh = Math.round((vw * oh) / ow);
 }
 const scale = ow / vw;
+const tz = opt('tz', null) ?? afternoonZone();
 const clips = args.length ? args : ALL;
+
+/** A timezone whose local time is closest to 2 PM, so every take shows a lived-in day. */
+function afternoonZone() {
+  const zones = ['Pacific/Honolulu', 'America/Los_Angeles', 'America/Denver', 'America/Chicago', 'America/New_York', 'America/Sao_Paulo', 'Atlantic/Azores', 'Europe/London', 'Europe/Berlin', 'Europe/Athens', 'Europe/Moscow', 'Asia/Dubai', 'Asia/Karachi', 'Asia/Dhaka', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland'];
+  const hour = (z) => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: z, hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
+    return Number(p.find((x) => x.type === 'hour').value) + Number(p.find((x) => x.type === 'minute').value) / 60;
+  };
+  return zones.reduce((best, z) => (Math.abs(hour(z) - 14) < Math.abs(hour(best) - 14) ? z : best));
+}
 
 if (spawnSync('ffmpeg', ['-version']).status !== 0) {
   console.error('ffmpeg is needed to encode the clips. Install it and try again.');
@@ -65,10 +78,11 @@ if (spawnSync('ffmpeg', ['-version']).status !== 0) {
 }
 mkdirSync(out, { recursive: true });
 
+console.log(`Phone: ${vw}×${vh} → ${ow}×${oh}, timezone ${tz}`);
 const browser = await chromium.launch();
 for (const clip of clips) {
   process.stdout.write(`● ${clip} … `);
-  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: scale, isMobile: true, hasTouch: true, colorScheme: 'light', reducedMotion: 'no-preference' });
+  const ctx = await browser.newContext({ viewport: { width: vw, height: vh }, deviceScaleFactor: scale, isMobile: true, hasTouch: true, colorScheme: 'light', reducedMotion: 'no-preference', timezoneId: tz });
   const page = await ctx.newPage();
   // Belt and braces: the DEV pill is never mounted in b-roll mode, and it's hidden here too.
   await page.addInitScript(() => {

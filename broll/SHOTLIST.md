@@ -46,17 +46,19 @@ All of it is dev-only. `brollClip()` returns `null` unless `import.meta.env.DEV`
 ### Record
 ```bash
 npm run dev                                   # terminal 1 (port 1420)
-npm run broll:record                          # all clips → broll/out/<clip>.mp4 (750×1624, 60 fps)
+npm run broll:record                          # all clips → broll/out/<clip>.mp4 (1080×1920, 9:16, 60 fps)
 npm run broll:record -- flow timeline --pace 1.1
-npm run broll:record -- --size 1080x1920      # true 9:16 (phone viewport becomes 360×640)
+npm run broll:record -- --size 2160x3840      # 4K 9:16
+npm run broll:record -- --tz Europe/London    # pin the phone's timezone
 ```
 This needs Playwright (`npm i -D playwright`, or a global install) and `ffmpeg` on PATH.
 
 ### Record live instead (OBS / QuickTime)
-Open `broll/index.html` and click a clip. Capture the 375×812 screen, or tick **Clean** for a borderless
-screen on green. You can also open `http://localhost:1420/?broll=stats` directly in a 375×812 device-mode window.
+Open `broll/index.html` and click a clip. Capture the 414×736 (9:16) screen, or tick **Clean** for a borderless
+screen on green. You can also open `http://localhost:1420/?broll=stats` directly in a 414×736 (9:16) device-mode window.
 
 ### Notes for the edit
-- Data is relative to "now". Today's sessions sit 3 h and 90 min before recording time, so record during the day: the timeline then has visible gaps to claim.
+- Clips are 9:16 (a 414×736 phone screen rendered at 1080×1920), so they fill a vertical timeline with no bars.
+- Data is relative to "now": today's sessions sit 3 h and 90 min before the phone's clock. The recorder automatically runs the phone in a timezone where it's early afternoon, so the timeline always has gaps to claim, whatever time you record. For live capture, record during the day.
 - Each take re-seeds its own notebook. Re-running a clip gives the same result, and your real or preview notebook is never touched.
 - Toasts and sticker pop-ups ("Welcome home!", "Moving in") are real app feedback. They make good punch-in points.
