@@ -1,7 +1,7 @@
 /**
  * B-roll mode: `npm run dev`, then open `http://localhost:1420/?broll=<clip>` (add `&pace=1.2` to slow
  * every beat down). The app boots into its own throwaway copy of the preview notebook, re-seeded on every
- * load, with the DEV pill never mounted, then a script plays the clip on the real UI. A 375×812 browser
+ * load, with the DEV pill never mounted, then a script plays the clip on the real UI. A 414×736 (9:16) browser
  * window (or `npm run broll:record`) turns it into a phone screen recording.
  *
  * `window.__broll` reports progress: { clip, state: 'loading' | 'playing' | 'done' | 'error', error? }.
