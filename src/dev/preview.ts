@@ -10,6 +10,7 @@ import { summarizeDay } from '@/engine/stats';
 import { dayStart, HOUR, MINUTE, today, tzNow, localDay } from '@/engine/time';
 import type { Board, Folder, Note, Session } from '@/engine/types';
 import { buildDemo } from '@/features/demo';
+import { STICKERS } from '@/features/stickers';
 import { currentVersion } from '@/features/updates';
 
 const SEEDED = 'devPreviewSeeded';
@@ -74,9 +75,9 @@ export async function seedPreview(): Promise<void> {
     await db.tasks.bulkPut(tasks);
     await db.notes.bulkPut(notes);
     await db.events.bulkAdd(data.events);
-    await db.stickers.bulkPut(data.stickers);
     await db.settings.put({ key: SEEDED, value: Date.now() });
   });
+  await fillStickers();
   await updateSettings({ onboarded: true, boardId: BOARDS[0].id, profile: { name: 'Preview' }, pingEnabled: false, updateCheck: false, syncTourSeen: true, lastSeenVersion: currentVersion(), presetId: DEFAULT_PRESETS[0].id, dailyGoalMs: 2 * HOUR });
 }
 
@@ -85,7 +86,14 @@ export async function wipePreview(): Promise<void> {
   await db.delete();
 }
 
+/** The preview book always shows every sticker earned, so new art can be eyeballed. Runs on every boot. */
+async function fillStickers(): Promise<void> {
+  const earnedAt = Date.now();
+  await db.stickers.bulkPut(STICKERS.map((s) => ({ id: s.id, earnedAt, seen: true })));
+}
+
 export async function ensurePreviewSeeded(): Promise<void> {
   await db.open();
   if (!(await isPreviewSeeded())) await seedPreview();
+  else await fillStickers();
 }

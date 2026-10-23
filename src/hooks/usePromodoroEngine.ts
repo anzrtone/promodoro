@@ -28,6 +28,7 @@ import { formatClock, formatDuration, formatTimeOfDay, MINUTE, uid } from '@/eng
 import type { Board, ModeChoice, Mood, Phase, Preset, Session, TimerState } from '@/engine/types';
 import { evaluateSession } from '@/features/stickers';
 import { platform } from '@/platform';
+import { refreshDailyReport } from '@/features/dailyReport';
 import type { AlarmSpec, NativeAction, StatusSpec } from '@/platform/types';
 
 export interface StartOptions {
@@ -128,7 +129,11 @@ class Engine {
     this.settings = await getSettings();
     liveQuery(getSettings).subscribe((s) => {
       const closeChanged = s.closeToTray !== this.settings.closeToTray;
+      const reportChanged = s.dailyReport !== this.settings.dailyReport || s.dailyReportMinutes !== this.settings.dailyReportMinutes || s.dailyGoalMs !== this.settings.dailyGoalMs;
+      const liveChanged = s.liveTimerNotification !== this.settings.liveTimerNotification;
       this.settings = s;
+      if (reportChanged) void refreshDailyReport();
+      if (liveChanged) void this.syncStatus(true);
       if (closeChanged) void platform().setCloseToTray?.(s.closeToTray);
     });
     liveQuery(() => db.boards.toArray()).subscribe((b) => (this.boards = b));
@@ -151,6 +156,7 @@ class Engine {
     void platform().setCloseToTray?.(this.settings.closeToTray);
     await logAppEvent('app.open');
     await this.settle();
+    void refreshDailyReport();
     this.publish({ ready: true });
     setInterval(() => this.tick(), 1000);
     document.addEventListener('visibilitychange', () => {
@@ -303,6 +309,7 @@ class Engine {
       console.warn('[engine] alarm sync failed', err);
     }
     await this.syncStatus(true);
+    void refreshDailyReport();
   }
 
   private soundFor(t: TimerState): string {
@@ -314,7 +321,8 @@ class Engine {
     const p = this.primary() ?? [...this.timers.values()][0];
     let status: StatusSpec | null = null;
     if (p) {
-      const snap = snapshot(p, Date.now());
+      const now = Date.now();
+      const snap = snapshot(p, now);
       const name = describe(p);
       const clock = snap.targetMs > 0 ? (snap.inOvertime ? `+${formatClock(snap.overtimeMs)}` : formatClock(snap.remainingMs, { ceil: true })) : formatClock(snap.totalMs);
       const at = nextAlarmAt(p);
@@ -326,7 +334,15 @@ class Engine {
             : at
               ? `Rings around ${formatTimeOfDay(at)}${p.overtime ? " · I'll keep counting after" : ''}`
               : `Counting up since ${formatTimeOfDay(p.createdAt)}`;
+      const live: StatusSpec['live'] = !this.settings.liveTimerNotification
+        ? undefined
+        : p.status === 'paused'
+          ? { kind: 'paused', at: now, frozen: clock }
+          : snap.targetMs > 0 && !snap.inOvertime
+            ? { kind: 'down', at: now + snap.remainingMs, frozen: clock }
+            : { kind: 'up', at: now - (snap.inOvertime ? snap.overtimeMs : snap.totalMs), frozen: clock };
       status = {
+        live,
         text: `${name} · ${clock}${p.status === 'paused' ? ' (paused)' : ''}`,
         title: `${p.status === 'paused' ? 'Paused' : p.phase === 'focus' ? 'Focusing' : isBreak(p.phase) ? 'Resting' : 'Timer'}${p.label ? ` · ${p.label}` : ''}`,
         detail,

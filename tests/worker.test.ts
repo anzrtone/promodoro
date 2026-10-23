@@ -8,7 +8,7 @@ import worker from '../worker/index.js';
 function makeEnv() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(readFileSync('worker/schema.sql', 'utf8'));
-  const objects = new Map<string, { body: ArrayBuffer; uploaded: Date }>();
+  const objects = new Map<string, { body: ArrayBuffer; uploaded: Date; customMetadata?: Record<string, string> }>();
   const DB = {
     prepare(sql: string) {
       return {
@@ -18,7 +18,9 @@ function makeEnv() {
   };
   const SYNC = {
     get: async (k: string) => (objects.has(k) ? { body: objects.get(k)!.body, uploaded: objects.get(k)!.uploaded } : null),
-    put: async (k: string, body: ArrayBuffer) => void objects.set(k, { body, uploaded: new Date() }),
+    head: async (k: string) => (objects.has(k) ? { customMetadata: objects.get(k)!.customMetadata } : null),
+    put: async (k: string, body: ArrayBuffer, opts?: { customMetadata?: Record<string, string> }) =>
+      void objects.set(k, { body, uploaded: new Date(), customMetadata: opts?.customMetadata }),
     delete: async (k: string) => void objects.delete(k),
   };
   return { env: { DB, SYNC }, sqlite, objects };
@@ -93,6 +95,59 @@ describe('worker: /sync', () => {
     const pre = await call(t.env, `/sync/${id}`, { method: 'OPTIONS' });
     expect(pre.status).toBe(204);
     expect(pre.headers.get('access-control-allow-methods')).toContain('PUT');
+  });
+
+  describe('write token', () => {
+    const tokenA = 'a1'.repeat(32);
+    const tokenB = 'b2'.repeat(32);
+    const put = (token?: string) => call(t.env, `/sync/${id}`, { method: 'PUT', body: blob, headers: token ? { 'x-sync-token': token } : {} });
+
+    it('lets the first token claim an id, then refuses overwrites and deletes without it', async () => {
+      expect((await put(tokenA)).status).toBe(204);
+      expect((await put()).status).toBe(403);
+      expect((await put(tokenB)).status).toBe(403);
+      expect((await put('not-a-token')).status).toBe(403);
+      expect((await call(t.env, `/sync/${id}`, { method: 'DELETE' })).status).toBe(403);
+      expect((await call(t.env, `/sync/${id}`, { method: 'DELETE', headers: { 'x-sync-token': tokenB } })).status).toBe(403);
+      expect((await put(tokenA)).status).toBe(204);
+      expect((await call(t.env, `/sync/${id}`)).status).toBe(200); // reading stays open: it is ciphertext
+      expect((await call(t.env, `/sync/${id}`, { method: 'DELETE', headers: { 'x-sync-token': tokenA } })).status).toBe(204);
+      expect((await call(t.env, `/sync/${id}`)).status).toBe(404);
+    });
+
+    it('stores only a hash of the token', async () => {
+      await put(tokenA);
+      const meta = t.objects.get(`s/${id}`)!.customMetadata!;
+      expect(meta.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+      expect(JSON.stringify(meta)).not.toContain(tokenA);
+    });
+
+    it('keeps snapshots from older apps (no token) writable until a new app claims them', async () => {
+      expect((await put()).status).toBe(204);
+      expect((await put()).status).toBe(204);
+      expect((await put(tokenA)).status).toBe(204);
+      expect((await put()).status).toBe(403);
+    });
+
+    it('allows the token header through CORS preflight', async () => {
+      const pre = await call(t.env, `/sync/${id}`, { method: 'OPTIONS' });
+      expect(pre.headers.get('access-control-allow-headers')).toContain('x-sync-token');
+    });
+  });
+
+  describe('rate limit', () => {
+    it('blocks an address that writes too fast, but never reads', async () => {
+      let n = 0;
+      const env = { ...t.env, LIMITER: { limit: async () => ({ success: ++n <= 2 }) } };
+      const put = () => call(env, `/sync/${id}`, { method: 'PUT', body: blob });
+      expect((await put()).status).toBe(204);
+      expect((await put()).status).toBe(204);
+      const blocked = await put();
+      expect(blocked.status).toBe(429);
+      expect(blocked.headers.get('retry-after')).toBe('60');
+      expect((await call(env, `/sync/${id}`)).status).toBe(200);
+      expect(n).toBe(3);
+    });
   });
 
   it('treats a snapshot older than 60 days as gone', async () => {

@@ -71,7 +71,11 @@ export function App() {
       void platform().setMiniMode?.(on);
     };
     const onMini = (e: Event) => set((e as CustomEvent<boolean>).detail);
-    const onNative = (e: Event) => (e as CustomEvent<string>).detail === 'mini' && set(!mini);
+    const onNative = (e: Event) => {
+      const a = (e as CustomEvent<string>).detail;
+      if (a === 'mini') set(!mini);
+      else if (a === 'open-stats') navigate('stats');
+    };
     window.addEventListener('promodoro:mini', onMini);
     window.addEventListener('promodoro:native-action', onNative);
     return () => {

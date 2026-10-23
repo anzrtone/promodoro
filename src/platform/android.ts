@@ -11,9 +11,11 @@ import { Haptics, ImpactStyle, NotificationType } from '@capacitor/haptics';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { Share } from '@capacitor/share';
 import { SOUNDS } from '@/audio/catalog';
-import type { AlarmSpec, NativeAction, Platform, PlatformHandlers, StatusSpec } from './types';
+import { TimerNotification } from './timerNotification';
+import type { AlarmSpec, NativeAction, Platform, PlatformHandlers, ReportSpec, StatusSpec } from './types';
 
 const STATUS_ID = 1;
+const REPORT_ID = 7001;
 const BACKUP_DIR = 'Promodoro';
 /** timerId → { notification id, due time } for alarms we've handed to AlarmManager. */
 const scheduled = new Map<string, { n: number; at: number }>();
@@ -77,6 +79,14 @@ async function ensureChannels() {
     visibility: 1,
     vibration: false,
   });
+  await LocalNotifications.createChannel({
+    id: 'daily_report',
+    name: 'Daily report',
+    description: 'One note each evening with how much you focused today.',
+    importance: 3,
+    visibility: 1,
+    vibration: false,
+  });
   await LocalNotifications.registerActionTypes({
     types: [
       { id: 'RUNNING', actions: [{ id: 'toggle', title: 'Pause / resume' }, { id: 'done', title: 'Done' }] },
@@ -98,14 +108,21 @@ export const android: Platform = {
       console.warn('[android] channel setup failed', err);
     }
     await LocalNotifications.addListener('localNotificationActionPerformed', (ev) => {
-      const extra = ev.notification.extra as { timerId?: string } | undefined;
+      const extra = ev.notification.extra as { timerId?: string; open?: string } | undefined;
       if (ev.actionId && ev.actionId !== 'tap') h.onAction(ev.actionId as NativeAction);
+      else if (extra?.open === 'stats') h.onAction('open-stats');
       else if (extra?.timerId) h.onAlarm(extra.timerId);
     });
     await LocalNotifications.addListener('localNotificationReceived', (n) => {
       const extra = n.extra as { timerId?: string } | undefined;
       if (extra?.timerId) h.onAlarm(extra.timerId);
     });
+    try {
+      // Buttons on the ticking timer notification (Pause / Resume / Stop).
+      await TimerNotification.addListener('action', (e) => h.onAction(e.action as NativeAction));
+    } catch (err) {
+      console.warn('[android] timer notification buttons unavailable', err);
+    }
     await App.addListener('appStateChange', ({ isActive }) => {
       if (isActive) {
         h.onResume(backgroundAt ? Date.now() - backgroundAt : 0);
@@ -155,12 +172,22 @@ export const android: Platform = {
   },
 
   async setStatus(status: StatusSpec | null) {
-    const key = status ? `${status.key}|${status.running}` : '';
+    const live = status?.live;
+    const key = status ? `${status.key}|${status.running}|${live ? 'live' : 'plain'}` : '';
     if (key === lastStatusKey) return;
     lastStatusKey = key;
     if (!status) {
-      await LocalNotifications.cancel({ notifications: [{ id: STATUS_ID }] });
+      await Promise.allSettled([TimerNotification.hide(), LocalNotifications.cancel({ notifications: [{ id: STATUS_ID }] })]);
       return;
+    }
+    if (live) {
+      try {
+        // Same notification id as the plain one below, so switching between them replaces it.
+        await TimerNotification.show({ title: status.title, detail: status.detail, kind: live.kind, at: live.at, frozen: live.frozen });
+        return;
+      } catch (err) {
+        console.warn('[android] live timer notification failed, using the plain one', err);
+      }
     }
     await LocalNotifications.schedule({
       notifications: [
@@ -174,6 +201,25 @@ export const android: Platform = {
           actionTypeId: 'RUNNING',
           smallIcon: 'ic_stat_pomo',
           iconColor: '#EE6B6E',
+        },
+      ],
+    });
+  },
+
+  async scheduleReport(report: ReportSpec | null) {
+    await LocalNotifications.cancel({ notifications: [{ id: REPORT_ID }] });
+    if (!report || !canNotify) return;
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: REPORT_ID,
+          title: report.title,
+          body: report.body,
+          channelId: 'daily_report',
+          schedule: { at: new Date(report.at), allowWhileIdle: true },
+          smallIcon: 'ic_stat_pomo',
+          iconColor: '#EE6B6E',
+          extra: { open: 'stats' },
         },
       ],
     });

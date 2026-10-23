@@ -25,6 +25,14 @@
 
         </activity>
 
+        <!-- Lands the running-timer notification's buttons; never shows anything. -->
+        <activity
+            android:name=".TimerActionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.NoDisplay" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

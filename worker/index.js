@@ -5,7 +5,7 @@
  *   POST   /survey      opt-in welcome-survey answers, one row per random install id (D1)
  *   POST   /ping        the user count: random id + platform + version, once a day (D1)
  *   GET    /sync/:id    the encrypted device-sync snapshot for a pairing id (R2) — ciphertext only
- *   PUT    /sync/:id
+ *   PUT    /sync/:id    needs the write token (x-sync-token) once the id has been claimed
  *   DELETE /sync/:id
  *
  * Setup is in worker/README.md. No IPs, user agents or other request metadata are stored.
@@ -22,7 +22,7 @@ const SYNC_TTL_MS = 60 * 24 * 60 * 60 * 1000;
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET, PUT, POST, DELETE, OPTIONS',
-  'access-control-allow-headers': 'content-type',
+  'access-control-allow-headers': 'content-type, x-sync-token',
   'access-control-max-age': '86400',
 };
 
@@ -36,6 +36,11 @@ export default {
     if (req.method === 'OPTIONS') return reply(204);
     const { pathname } = new URL(req.url);
     try {
+      // Writes only. The address is handed to the limiter and never stored. No limiter bound (tests, local) = no limit.
+      if (req.method !== 'GET' && env.LIMITER) {
+        const { success } = await env.LIMITER.limit({ key: req.headers.get('cf-connecting-ip') ?? 'unknown' });
+        if (!success) return reply(429, null, { 'retry-after': '60' });
+      }
       if (pathname === '/survey') return await survey(req, env);
       if (pathname === '/ping') return await ping(req, env);
       const m = pathname.match(/^\/sync\/([0-9a-f]{32})$/);
@@ -115,6 +120,24 @@ async function ping(req, env) {
   return reply(204);
 }
 
+const sha256Hex = async (s) =>
+  Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))), (b) => b.toString(16).padStart(2, '0')).join('');
+
+/**
+ * Overwriting or deleting needs the write token whenever the snapshot has been claimed with one. The first
+ * write that carries a token claims the id; snapshots from older app versions (no token yet) stay writable
+ * until a newer app claims them. Only the token's hash is stored, in the object's metadata.
+ * Returns the hash to store (or null) when allowed, or false when refused.
+ */
+async function authorizeWrite(req, env, key) {
+  const token = req.headers.get('x-sync-token');
+  const given = token && /^[0-9a-f]{64}$/i.test(token) ? await sha256Hex(token.toLowerCase()) : null;
+  const head = await env.SYNC.head(key);
+  const owner = head?.customMetadata?.tokenHash ?? null;
+  if (owner && owner !== given) return false;
+  return given;
+}
+
 async function sync(req, env, id) {
   const key = `s/${id}`;
   if (req.method === 'GET') {
@@ -132,10 +155,13 @@ async function sync(req, env, id) {
     const body = await req.arrayBuffer();
     if (body.byteLength > MAX_SYNC_BYTES) return reply(413);
     if (body.byteLength < 14) return reply(400);
-    await env.SYNC.put(key, body);
+    const hash = await authorizeWrite(req, env, key);
+    if (hash === false) return reply(403);
+    await env.SYNC.put(key, body, hash ? { customMetadata: { tokenHash: hash } } : undefined);
     return reply(204);
   }
   if (req.method === 'DELETE') {
+    if ((await authorizeWrite(req, env, key)) === false) return reply(403);
     await env.SYNC.delete(key);
     return reply(204);
   }

@@ -29,9 +29,21 @@ export interface StatusSpec {
   running: boolean;
   /** Changes only when the static parts change; used to throttle native updates. */
   key: string;
+  /**
+   * Android's ticking notification. Absent when the user turned it off. `down`: `at` is when
+   * it reaches zero; `up`: `at` is when counting began; `paused`: show `frozen` as is.
+   */
+  live?: { kind: 'down' | 'up' | 'paused'; at: number; frozen: string };
 }
 
-export type NativeAction = 'toggle' | 'done' | 'show' | 'mini' | 'start-focus' | 'start-break';
+/** A notification to deliver at `at`, replacing any earlier one of its kind. */
+export interface ReportSpec {
+  at: number;
+  title: string;
+  body: string;
+}
+
+export type NativeAction = 'toggle' | 'done' | 'show' | 'mini' | 'start-focus' | 'start-break' | 'open-stats';
 
 export interface PlatformHandlers {
   /** A native alarm fired (desktop scheduler / notification tap). */
@@ -62,6 +74,8 @@ export interface Platform {
   syncAlarms(alarms: AlarmSpec[]): Promise<void>;
   setStatus(status: StatusSpec | null): Promise<void>;
   requestNotificationPermission(): Promise<boolean>;
+  /** Android: schedule (or, with null, cancel) the daily report notification. */
+  scheduleReport?(report: ReportSpec | null): Promise<void>;
   /** Let the user save an export somewhere (Save dialog on desktop, share sheet on Android). */
   saveExport(fileName: string, mime: string, contents: string): Promise<string | null>;
   /** Same as saveExport for binary data (e.g. the shareable PNG page), base64-encoded. */

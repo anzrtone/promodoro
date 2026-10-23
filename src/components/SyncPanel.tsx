@@ -18,6 +18,7 @@ function pickFile(accept: string): Promise<File | null> {
 }
 
 const SYNC_FOLDER = 'Promodoro Sync';
+const SYNC_COOLDOWN_MS = 10_000;
 const joinPath = (dir: string, leaf: string) => {
   const sep = dir.includes('\\') ? '\\' : '/';
   return `${dir.replace(/[\\/]+$/, '')}${sep}${leaf}`;
@@ -28,6 +29,7 @@ export function SyncPanel() {
   const sync = s.sync;
   const p = platform();
   const [busy, setBusy] = useState(false);
+  const [cooling, setCooling] = useState(false);
   const [reveal, setReveal] = useState(false);
   const [entering, setEntering] = useState(false);
   const [typed, setTyped] = useState('');
@@ -56,6 +58,11 @@ export function SyncPanel() {
     setBusy(true);
     const r = await syncNow();
     setBusy(false);
+    if (r.status === 'ok') {
+      // Rest the button briefly so rapid clicks can't hammer the server.
+      setCooling(true);
+      setTimeout(() => setCooling(false), SYNC_COOLDOWN_MS);
+    }
     if (r.status === 'ok') toast({ text: r.summary, tone: 'success' });
     else if (r.status === 'failed') toast({ text: r.error });
     else if (r.status === 'skipped' && r.reason === 'no-folder') toast({ text: 'Choose a sync folder first' });
@@ -291,8 +298,8 @@ export function SyncPanel() {
         {((sync.method === 'folder' && folder) || (sync.method === 'relay' && sync.code)) && (
           <div className="mt-4 border-t border-rule pt-3">
             <div className="flex flex-wrap items-center gap-3">
-              <button className="btn-primary" disabled={busy || (sync.method === 'folder' && p.backupFolderPickable && !folder)} onClick={() => void run()}>
-                <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Syncing…' : 'Sync now'}
+              <button className="btn-primary" disabled={busy || cooling || (sync.method === 'folder' && p.backupFolderPickable && !folder)} onClick={() => void run()}>
+                <RefreshCw size={16} className={busy ? 'animate-spin' : ''} /> {busy ? 'Syncing…' : cooling ? 'Synced just now' : 'Sync now'}
               </button>
               <span className="text-xs text-ink/55">
                 {sync.lastError ? <span className="text-tomato">Last attempt failed: {sync.lastError}</span> : `${lastSyncedLabel(sync)}${sync.lastSummary ? `. ${sync.lastSummary}` : ''}`}

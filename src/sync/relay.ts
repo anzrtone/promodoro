@@ -24,13 +24,20 @@ export async function relayGet(id: string, fetchImpl: typeof fetch = fetch, base
   return new Uint8Array(await res.arrayBuffer());
 }
 
-export async function relayPut(id: string, blob: Uint8Array, fetchImpl: typeof fetch = fetch, base = API_BASE): Promise<void> {
-  const res = await call(`/sync/${id}`, { method: 'PUT', headers: { 'content-type': 'application/octet-stream' }, body: blob as BodyInit }, fetchImpl, base);
+function checkWrite(res: Response): void {
+  if (res.status === 403) throw new RelayError("The sync server didn't accept this device's code for that pair. Re-pair the devices with a fresh sync code.");
+  if (res.status === 429) throw new RelayError('Too many sync requests at once. Wait a minute and try again.');
+}
+
+export async function relayPut(id: string, token: string, blob: Uint8Array, fetchImpl: typeof fetch = fetch, base = API_BASE): Promise<void> {
+  const res = await call(`/sync/${id}`, { method: 'PUT', headers: { 'content-type': 'application/octet-stream', 'x-sync-token': token }, body: blob as BodyInit }, fetchImpl, base);
   if (res.status === 413) throw new RelayError('Your data is too big for the sync server. Use a cloud folder instead.');
+  checkWrite(res);
   if (!res.ok) throw new RelayError(`The sync server said ${res.status}.`);
 }
 
-export async function relayDelete(id: string, fetchImpl: typeof fetch = fetch, base = API_BASE): Promise<void> {
-  const res = await call(`/sync/${id}`, { method: 'DELETE' }, fetchImpl, base);
+export async function relayDelete(id: string, token: string, fetchImpl: typeof fetch = fetch, base = API_BASE): Promise<void> {
+  const res = await call(`/sync/${id}`, { method: 'DELETE', headers: { 'x-sync-token': token } }, fetchImpl, base);
+  checkWrite(res);
   if (!res.ok && res.status !== 404) throw new RelayError(`The sync server said ${res.status}.`);
 }

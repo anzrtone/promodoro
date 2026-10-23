@@ -101,7 +101,7 @@ async function syncRelay(): Promise<SyncResult> {
   let pushed = false;
   if (!upToDate) {
     const out = await encryptSnapshot(JSON.stringify(backup), keys.key);
-    await relayPut(keys.id, out);
+    await relayPut(keys.id, keys.token, out);
     await saveSync({ lastPushHash: hash, lastBlobHash: await sha256Hex(out) });
     pushed = true;
   }

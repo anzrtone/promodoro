@@ -2,7 +2,7 @@
   "name": "promodoro",
   "private": true,
   "license": "AGPL-3.0-only",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Focus at your own pace. A cozy, local-first focus timer for desktop and Android.",
   "type": "module",
   "scripts": {

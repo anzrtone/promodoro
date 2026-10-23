@@ -63,6 +63,9 @@ describe('sync codes & encryption', () => {
     const b = await deriveKeys(newSyncCode());
     expect(a.id).toMatch(/^[0-9a-f]{32}$/);
     expect(a.id).not.toBe(b.id);
+    expect(a.token).toMatch(/^[0-9a-f]{64}$/);
+    expect(a.token).not.toBe(b.token);
+    expect(a.token).not.toContain(a.id);
     const blob = await encryptSnapshot('{"hello":"wörld"}', a.key);
     expect(new TextDecoder().decode(blob)).not.toContain('hello');
     expect(await decryptSnapshot(blob, a.key)).toBe('{"hello":"wörld"}');

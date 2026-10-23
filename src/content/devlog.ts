@@ -18,6 +18,25 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.4',
+    date: '2026-10-23',
+    note: 'Pomo moved into your notification bar, checks in with a report before bed, hands out seven new stickers, and keeps your synced notebook locked up tight.',
+    changes: [
+      { kind: 'new', text: 'A live timer in your Android notification bar. It ticks on its own, even with the app closed, with a Pause button while it runs.' },
+      { kind: 'new', text: 'When you pause, the notification offers Resume and Stop, so you can pick up or finish without opening the app.' },
+      { kind: 'new', text: 'A daily report arrives each evening (10 PM by default) telling you how long you focused. Tap it to open your Stats. Pick the time in Settings, or switch it off. Days with no focus get no report.' },
+      { kind: 'new', text: 'Seven new Pomo stickers: a FINISH ribbon, a 100-hour medal, a moving box with a plant, nerd glasses, a nap on a cloud, a sleepy zzz and a happy wiggle.' },
+      { kind: 'new', text: 'Syncing between your devices is now locked with a secret key made from your pairing code, so only your own devices can change or delete what’s stored.' },
+      { kind: 'new', text: 'After you sync, the button rests for 10 seconds and says “Synced just now.”' },
+      { kind: 'better', text: 'Every sticker now has a proper white die-cut outline, so the new ones sit alongside the older ones.' },
+      { kind: 'better', text: '“Done is done”, “Welcome back”, “Rest counts”, “Ten pages”, “100 hours”, “Moving in” and “Backup buddy” each have their own Pomo now, so fewer stickers share a face.' },
+      { kind: 'better', text: 'The “Ten pages” blurb now matches the nerd Pomo (“Pomo is very impressed”).' },
+      { kind: 'better', text: 'The sync server slows down anyone who sends too many updates in a minute. It never keeps their address.' },
+      { kind: 'better', text: 'If a sync is refused or slowed down, the app tells you why and what to do next.' },
+      { kind: 'better', text: "The daily report's total counts overtime, and a new “Timer in the notification bar” switch in Settings takes you back to the simple notification." },
+    ],
+  },
+  {
     version: '0.1.3',
     date: '2026-10-23',
     note: 'Your tasks finally behave, and Pomo learned to hum instead of shout in overtime.',

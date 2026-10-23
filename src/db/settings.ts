@@ -114,6 +114,12 @@ export interface AppSettings {
   alarmRepeat: boolean;
   /** What happens when a timer that keeps counting (Gentle Flow, overtime goal) reaches its goal. */
   overtimeAlert: OvertimeAlert;
+  /** Android: a ticking notification with pause / resume / stop buttons while a timer runs. */
+  liveTimerNotification: boolean;
+  /** Android: a notification each evening with the day's focus. Skipped on days with no focus. */
+  dailyReport: boolean;
+  /** When the daily report arrives, as minutes after local midnight (22:00 by default). */
+  dailyReportMinutes: number;
   ambient: AmbientId | null;
   ambientVolume: number;
   ambientAutoplay: boolean;
@@ -196,6 +202,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   silent: false,
   alarmRepeat: false,
   overtimeAlert: 'vibrate',
+  liveTimerNotification: true,
+  dailyReport: true,
+  dailyReportMinutes: 22 * 60,
   ambient: null,
   ambientVolume: 0.35,
   ambientAutoplay: false,

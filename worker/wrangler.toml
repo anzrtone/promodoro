@@ -11,3 +11,12 @@ database_id = "80f2f270-d727-4811-8c3c-c2616b1fac51"
 [[r2_buckets]]
 binding = "SYNC"
 bucket_name = "promodoro-sync"
+
+# Per-address cap on writes (PUT/DELETE/POST): 20 a minute. The address is never stored. If your plan or
+# wrangler version doesn't support this binding, delete the block; the Worker runs fine without it.
+[[ratelimits]]
+name = "LIMITER"
+namespace_id = "1001"
+  [ratelimits.simple]
+  limit = 20
+  period = 60

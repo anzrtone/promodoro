@@ -20,8 +20,18 @@ import puzzled from '@/assets/stickers/puzzled.webp';
 import shy from '@/assets/stickers/shy.webp';
 import smitten from '@/assets/stickers/smitten.webp';
 import teary from '@/assets/stickers/teary.webp';
+import done from '@/assets/stickers/done.webp';
+import excited from '@/assets/stickers/excited.webp';
+import hundred from '@/assets/stickers/hundred.webp';
+import moving from '@/assets/stickers/moving.webp';
+import nerd from '@/assets/stickers/nerd.webp';
+import backup from '@/assets/stickers/backup.webp';
+import sleeping from '@/assets/stickers/sleeping.webp';
 
-export const STICKER_ART = { content, flustered, grumpy, neutral, peek, puzzled, shy, smitten, teary };
+export const STICKER_ART = {
+  content, flustered, grumpy, neutral, peek, puzzled, shy, smitten, teary,
+  done, excited, hundred, moving, nerd, backup, sleeping,
+};
 
 export interface StickerDef {
   id: string;
@@ -36,14 +46,14 @@ export const STICKERS: StickerDef[] = [
   { id: 'first-page', title: 'First page', blurb: 'Your very first session. Hello!', hint: 'Finish any focus session', art: 'content', tilt: -4 },
   { id: 'in-the-flow', title: 'In the flow', blurb: 'You kept going past zero, and every minute counted.', hint: 'Keep working past the alarm', art: 'smitten', tilt: 3 },
   { id: 'found-time', title: 'Found time', blurb: 'You recovered time you forgot to track. It counts.', hint: 'Backdate, turn the clock forward, or claim a gap', art: 'puzzled', tilt: -2 },
-  { id: 'done-is-done', title: 'Done is done', blurb: 'Wrapped up early. Knowing when to stop is a skill.', hint: 'Finish a session before the timer', art: 'peek', tilt: 5 },
-  { id: 'welcome-back', title: 'Welcome back', blurb: 'A few days away, and here you are. Pomo missed you.', hint: 'Come back after 3+ days away', art: 'shy', tilt: -5 },
-  { id: 'rest-counts', title: 'Rest counts', blurb: 'Ten breaks taken. Rest is part of the work.', hint: 'Take 10 breaks', art: 'neutral', tilt: 2 },
+  { id: 'done-is-done', title: 'Done is done', blurb: 'Wrapped up early. Knowing when to stop is a skill.', hint: 'Finish a session before the timer', art: 'done', tilt: 5 },
+  { id: 'welcome-back', title: 'Welcome back', blurb: 'A few days away, and here you are. Pomo missed you.', hint: 'Come back after 3+ days away', art: 'excited', tilt: -5 },
+  { id: 'rest-counts', title: 'Rest counts', blurb: 'Ten breaks taken. Rest is part of the work.', hint: 'Take 10 breaks', art: 'sleeping', tilt: 2 },
   { id: 'long-haul', title: 'Long haul', blurb: 'A single stretch of 90 minutes or more.', hint: 'One session of 90+ minutes', art: 'flustered', tilt: -3 },
-  { id: 'ten-pages', title: 'Ten pages', blurb: 'Ten days of notebook filled. Happy tears!', hint: 'Focus on 10 different days', art: 'teary', tilt: 4 },
-  { id: 'hundred-hours', title: '100 hours', blurb: 'One hundred hours of focus, all yours.', hint: 'Reach 100 hours total', art: 'smitten', tilt: -4 },
-  { id: 'moving-in', title: 'Moving in', blurb: 'You brought your history along. Make yourself at home.', hint: 'Import sessions from another app', art: 'content', tilt: 3 },
-  { id: 'backup-buddy', title: 'Backup buddy', blurb: 'Automatic backups on. Your notebook is safe.', hint: 'Turn on automatic backups', art: 'peek', tilt: -2 },
+  { id: 'ten-pages', title: 'Ten pages', blurb: 'Ten days of notebook filled. Pomo is very impressed.', hint: 'Focus on 10 different days', art: 'nerd', tilt: 4 },
+  { id: 'hundred-hours', title: '100 hours', blurb: 'One hundred hours of focus, all yours.', hint: 'Reach 100 hours total', art: 'hundred', tilt: -4 },
+  { id: 'moving-in', title: 'Moving in', blurb: 'You brought your history along. Make yourself at home.', hint: 'Import sessions from another app', art: 'moving', tilt: 3 },
+  { id: 'backup-buddy', title: 'Backup buddy', blurb: 'Automatic backups on. Your notebook is safe.', hint: 'Turn on automatic backups', art: 'backup', tilt: -2 },
   { id: 'nice-to-meet-you', title: 'Nice to meet you', blurb: 'You and Pomo said hello. The first page of a cozy notebook.', hint: 'Finish the welcome notebook', art: 'shy', tilt: 4 },
   { id: 'pomo-poke', title: 'Hey!', blurb: 'Pomo has feelings too, you know.', hint: 'A secret…', art: 'grumpy', tilt: 6 },
 ];

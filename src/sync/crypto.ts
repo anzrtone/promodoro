@@ -35,6 +35,8 @@ export interface SyncKeys {
   /** Opaque 32-hex id the server stores the snapshot under. */
   id: string;
   key: CryptoKey;
+  /** 64-hex write token, derived separately from the key. The server keeps only its hash and demands it to overwrite or delete. */
+  token: string;
 }
 
 export async function deriveKeys(code: string): Promise<SyncKeys> {
@@ -44,7 +46,8 @@ export async function deriveKeys(code: string): Promise<SyncKeys> {
   const params = (info: string) => ({ name: 'HKDF', hash: 'SHA-256', salt: enc.encode('promodoro-sync-v1'), info: enc.encode(info) });
   const idBits = await crypto.subtle.deriveBits(params('id'), base, 128);
   const key = await crypto.subtle.deriveKey(params('key'), base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
-  return { id: toHex(new Uint8Array(idBits)), key };
+  const tokenBits = await crypto.subtle.deriveBits(params('write-token'), base, 256);
+  return { id: toHex(new Uint8Array(idBits)), key, token: toHex(new Uint8Array(tokenBits)) };
 }
 
 const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');

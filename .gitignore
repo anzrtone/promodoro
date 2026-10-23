@@ -17,3 +17,6 @@ src-tauri/gen/schemas/
 *.keystore
 *.jks
 coverage/
+
+# Wrangler local dev state
+.wrangler/

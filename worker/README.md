@@ -65,5 +65,12 @@ removes the row.
 
 - Desktop builds can reach `*.workers.dev` already (`connect-src` in `src-tauri/tauri.conf.json`). If you
   put the Worker on a custom domain, add that origin there too.
-- Rate limiting in the Cloudflare dashboard (WAF) is a paid feature. On the free plan the daily request cap is the
-  backstop: abuse can at worst pause the API until the next day, not run up a bill.
+- **Write token.** The app derives a 64-hex token from the pairing code (separately from the encryption key) and
+  sends it as `x-sync-token` on `PUT`/`DELETE`. The first write claims the id; the Worker stores only the token's
+  SHA-256 in the object's metadata and answers 403 to anyone else. Snapshots written by older app versions have no
+  token and stay writable until a newer app claims them. Reads stay open (the blob is ciphertext).
+- **Rate limit.** `wrangler.toml` binds the Workers Rate Limiting API as `LIMITER`: 20 writes a minute per address
+  (the address goes to the limiter in memory and is never stored). Over the limit gets a 429. If your wrangler
+  version or plan rejects the `[[ratelimits]]` block, delete it; the Worker skips the check when it isn't bound.
+  Dashboard WAF rate-limiting rules are a separate, plan-dependent feature. The free plan's daily request cap is the
+  last backstop: abuse can at worst pause the API until the next day, not run up a bill.

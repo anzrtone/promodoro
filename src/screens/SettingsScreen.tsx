@@ -340,6 +340,26 @@ function SoundSettings() {
           {s.overtimeAlert === 'sound' ? 'Plays your alarm sound at the goal.' : s.overtimeAlert === 'vibrate' ? (platform().kind === 'desktop' ? 'A notification, no sound.' : 'A buzz and a notification, no sound.') : 'No sound, no buzz, no pop-up.'}
         </p>
       </div>
+      {platform().kind === 'android' && (
+        <>
+          <Toggle checked={s.liveTimerNotification} onChange={(v) => void updateSettings({ liveTimerNotification: v })} label="Timer in the notification bar" hint="A ticking timer with pause, resume and stop buttons while one is running." />
+          <Toggle checked={s.dailyReport} onChange={(v) => void updateSettings({ dailyReport: v })} label="Daily report" hint="One note each evening with how long you focused. Skipped on days you didn't." />
+          {s.dailyReport && (
+            <div className="flex items-center gap-3 pb-2">
+              <span className="label !mb-0">Report time</span>
+              <input
+                type="time"
+                className="field !w-auto"
+                value={`${String(Math.floor(s.dailyReportMinutes / 60)).padStart(2, '0')}:${String(s.dailyReportMinutes % 60).padStart(2, '0')}`}
+                onChange={(e) => {
+                  const [h, m] = e.target.value.split(':').map(Number);
+                  if (Number.isFinite(h) && Number.isFinite(m)) void updateSettings({ dailyReportMinutes: h * 60 + m });
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
       {platform().kind === 'android' && <p className="text-xs text-ink/55">Alarms use Promodoro's own notification channels, so your phone's other sounds are never changed. When the screen is off, Android plays alarms through the notification channel at your phone's notification volume.</p>}
 
       <div className="mt-3">
