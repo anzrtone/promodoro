@@ -13,6 +13,7 @@ import { DAY, HOUR, MINUTE, dayStart, localDay, today, tzNow } from '@/engine/ti
 import type { Session } from '@/engine/types';
 import { navigate } from '@/features/nav';
 import { platform } from '@/platform';
+import { ONCE_ID } from '@/components/QuickAdd';
 import { brollClip } from '@/dev/flag';
 import { ensurePreviewSeeded } from '@/dev/preview';
 import { CLIPS } from './clips';
@@ -33,11 +34,16 @@ export async function prepareBroll(): Promise<void> {
   await ensurePreviewSeeded();
   await updateSettings({
     // Big full-screen focus mode is the intro's money shot; Gentle Flow needs the card's overtime readout.
-    focusModeAuto: clip === 'intro',
+    focusModeAuto: ['intro', 'custom', 'clock'].includes(clip),
     ambientAutoplay: false,
     // Recorded silently: the voice-over carries the audio.
     silent: true,
   });
+  // The clock clip picks up where `custom` leaves off: a 35 / 9 one-off timer is already chosen.
+  if (clip === 'clock') {
+    await db.presets.put({ id: ONCE_ID, name: 'One-off', focusMin: 35, shortMin: 9, longMin: 20, rounds: 3, once: true, order: 9999 });
+    await updateSettings({ presetId: ONCE_ID, round: 1 });
+  }
   stubPlatform();
   stubFilePicker();
 }

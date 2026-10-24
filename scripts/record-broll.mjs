@@ -36,7 +36,7 @@ try {
   process.exit(1);
 }
 
-const ALL = ['intro', 'stats', 'export', 'import', 'sync', 'timeline', 'flow', 'subjects', 'outro'];
+const ALL = ['intro', 'stats', 'export', 'import', 'sync', 'timeline', 'flow', 'subjects', 'outro', 'custom', 'clock'];
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);

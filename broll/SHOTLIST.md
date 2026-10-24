@@ -18,6 +18,8 @@ the actual UI doing its actual thing.
 | 7 | "Pomodoros are just so outdated… Gentle Flow mode… keep the timer running in overtime… won't miss a single second." | Focus: **forgot to start? → custom… → 24 min ago → Go** gives a 25-min session with 1:00 left. The clock speeds to **0:00**, then flips to the yellow **+00:20 · "25:00 planned + 00:20 overtime"** and Pomo says "Ooh, flow state! I'll keep counting." It keeps climbing to **+07:10**. | Taps, typing, clock warp | `flow` | ~23 s |
 | 8 | "A bunch of other nifty features, like a task system, folder management…" | Subjects tab: the University ▸ Biology folder tree. Tap **Anatomy** to open its sheet, type the task "Flashcards: muscles of the arm" + Enter, then tick it off. | Tab, tap, type, tap | `subjects` | ~10 s |
 | 9 | "Stop giving your money over… all of this can be free… my GitHub, or send me a DM." | Fast tour: Stats (scroll), Subjects, Timeline, back to Focus, then **Start focus**. Ends on the ticking card. | Tab taps, scroll, tap | `outro` | ~20 s |
+| 10 | Custom Pomodoro length | Focus card → tap **Classic 25/5 · Anatomy ⌄** → *Set up this session* → **+ Custom** → *Custom timing*: focus steps 45 → 35, one tap at a time → **Use once** → **Done**. The card now reads **35:00 · One-off 35/9**. **Start focus** opens full-screen focus mode. | Taps, 10× stepper tap | `custom` | ~16 s |
+| 11 | Moving the clock by hand | A 35-min session in focus mode. Grab the ring's knob and wind it round: 28:00 → 12:00 → back to 22:00, let go and it ticks on. Again: 17:00 → 07:00 → 23:00. **Pause** → **Done** → *Done is done ✓*: planned 35m, worked 12m 04s, recovered 11m. | Circular drags, taps | `clock` | ~25 s |
 | ★ | Whole script | All of the above back to back in one take. | — | `reel` | ~2 min |
 
 Lengths are at `pace=1`. Use `--pace 1.15` (or `&pace=1.15`) to stretch every beat to a slower read.
@@ -28,7 +30,7 @@ Lengths are at `pace=1`. Use `--pace 1.15` (or `&pace=1.15`) to stretch every be
 
 | File | What it does |
 |---|---|
-| `src/dev/broll/director.ts` | The "thumb": touch indicator (dot, press, ripple), `tap`, momentum `scroll`/`reveal`, `drag`, human-paced `type`, and `warpClock` (runs the app clock fast so the bell arrives without a minute of dead air). |
+| `src/dev/broll/director.ts` | The "thumb": touch indicator (dot, press, ripple), `tap`, `tapRepeat`, momentum `scroll`/`reveal`, `drag`, `dragAround` (circular dial drag), human-paced `type`, and `warpClock` (runs the app clock fast so the bell arrives without a minute of dead air). |
 | `src/dev/broll/clips.ts` | One async script per shot above, with its beats timed to the narration. |
 | `src/dev/broll/index.ts` | Boot hook: a fresh copy of the preview notebook for every take (`promodoro-dev-broll` IndexedDB), clip settings (silent, focus mode only for `intro`), and stand-ins for native pieces: no download dialog on export, a Google Drive folder and "phone" data for sync, and a Forest CSV for the file picker. |
 | `src/dev/flag.ts`, `src/db/schema.ts`, `src/main.tsx` | `?broll=<clip>` switches it on. **The DEV · preview pill is never mounted** in B-roll mode. |

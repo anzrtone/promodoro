@@ -2,10 +2,23 @@
  * One script per B-roll shot, each timed to its line of the A-roll voice-over (rough read at ~2.6
  * words/s; `?pace=` stretches or squeezes them all). See broll/SHOTLIST.md for the cue sheet.
  */
-import { drag, find, main, pressEnter, query, reveal, scroll, tab, tap, type, wait, warpClock } from './director';
+import { drag, dragAround, find, main, pressEnter, query, reveal, scroll, stir, tab, tap, tapRepeat, type, wait, warpClock } from './director';
 
 const sheet = () => document.querySelector<HTMLElement>('[role="dialog"] > div.relative');
 const section = (title: string) => () => query('section', new RegExp(`^${title}`));
+/** The top-most sheet (sheets can stack: Set up this session → Custom timing). */
+const topSheet = () => {
+  const all = document.querySelectorAll<HTMLElement>('[role="dialog"]');
+  return all.length ? all[all.length - 1] : null;
+};
+const inTop = (selector: string, text?: string | RegExp) => () => {
+  const top = topSheet();
+  return top ? query(selector, text, top) : null;
+};
+const focusMode = (selector: string, text?: string | RegExp) => () => {
+  const root = document.querySelector('[aria-label="Focus mode"]');
+  return root ? query(selector, text, root) : null;
+};
 
 export const CLIPS: Record<string, () => Promise<void>> = {
   /** "So I have built Promodoro… get out of here with your paywalls." (~13 s) */
@@ -152,6 +165,46 @@ export const CLIPS: Record<string, () => Promise<void>> = {
     main().scrollTo({ top: 0 });
     await tap('[data-tour="start"]');
     await wait(5000);
+  },
+
+  /** Custom session length: set up this session → Custom → focus 45 → 35 min → Use once → start. (~16 s) */
+  async custom() {
+    await wait(1300);
+    await tap('[data-tour="setup"]'); // "Classic 25/5 · Anatomy ⌄"
+    await find('[role="dialog"]');
+    await wait(1100);
+    await tap('[role="dialog"] button', /^Custom$/);
+    await find(inTop('h2', 'Custom timing'));
+    await wait(900);
+    await tapRepeat(inTop('button[aria-label="Less"]'), 10, { every: 300 }); // focus 45 → 35
+    await wait(800);
+    await tap(inTop('button', /^Use once$/));
+    await wait(900);
+    await tap(inTop('button', /^Done$/));
+    await wait(1500); // card now reads 35:00 · One-off 35/9
+    await tap('[data-tour="start"]');
+    await wait(3800); // full-screen focus mode, 35:00 ticking
+  },
+
+  /** Moving the clock by hand: drag the focus-mode ring round to change the time left, then wrap up. (~22 s) */
+  async clock() {
+    await wait(1000);
+    await tap('[data-tour="start"]'); // a 35-minute one-off, opens in focus mode
+    await wait(2400);
+    const band = await find(focusMode('circle[stroke="transparent"]'));
+    const radius = ((band as unknown as SVGElement).ownerSVGElement!.getBoundingClientRect().width * 88) / 200;
+    stir(band);
+    await wait(300);
+    // Grab the knob at 12 o'clock and wind it: 28 min left, 12, back to 22, let go.
+    await dragAround(band, [0, 0.2, 0.657, 0.371], { radius, hold: 450 });
+    await wait(2200); // ticking on from 22:00
+    stir(band);
+    await dragAround(band, [0.374, 0.514, 0.8, 0.343], { radius, hold: 450 }); // 17, 7, then 23 min left
+    await wait(2400);
+    await tap(focusMode('button', /^Pause$/));
+    await wait(1200);
+    await tap(focusMode('button', /Done$/));
+    await wait(3600); // "Done is done ✓": planned 35m, worked, recovered
   },
 };
 

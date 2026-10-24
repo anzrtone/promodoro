@@ -186,6 +186,8 @@ export async function reveal(target: Target, opts: { at?: number; text?: string 
 
 const inView = (el: HTMLElement) => {
   const r = el.getBoundingClientRect();
+  // Sheets sit above the tab bar, so anything on screen inside one is within reach.
+  if (el.closest('[role="dialog"]')) return r.top >= 8 && r.bottom <= innerHeight - 8;
   const box = scrollerOf(el);
   const b = box.getBoundingClientRect();
   const bottom = Math.min(b.bottom, innerHeight - (box === main() ? NAV_H : 0));
@@ -258,6 +260,73 @@ export async function drag(target: Target, from: number, to: number, opts: { ms?
   pressFinger(false);
   await wait(140);
   showFinger(false);
+}
+
+/** Tap the same button several times in a row, finger resting on it (e.g. stepping a number down). */
+export async function tapRepeat(target: Target, times: number, opts: { every?: number } = {}) {
+  let el = await find(target);
+  if (!inView(el)) {
+    await reveal(el, { at: 0.45 });
+    await wait(200);
+    el = await find(target);
+  }
+  const r = el.getBoundingClientRect();
+  const x = r.left + r.width / 2;
+  const y = r.top + r.height / 2;
+  moveFinger(x, y);
+  showFinger(true);
+  await wait(110);
+  for (let i = 0; i < times; i++) {
+    pressFinger(true);
+    ripple(x, y);
+    pointer('pointerdown', el, x, y);
+    await wait(70);
+    pointer('pointerup', el, x, y);
+    el.click();
+    pressFinger(false);
+    await wait((opts.every ?? 260) - 70);
+  }
+  await wait(120);
+  showFinger(false);
+}
+
+/**
+ * Drag round a circular dial like a thumb on a kitchen timer. `fracs` are clock positions
+ * (0 = 12 o'clock, 0.25 = 3 o'clock, …); the finger presses at the first, glides through
+ * each of the rest (pausing briefly on each), then lets go.
+ */
+export async function dragAround(target: Target, fracs: number[], opts: { radius: number; ms?: number; hold?: number }) {
+  const el = await find(target);
+  const box = ((el as unknown as SVGElement).ownerSVGElement ?? el).getBoundingClientRect();
+  const cx = box.left + box.width / 2;
+  const cy = box.top + box.height / 2;
+  const at = (f: number) => {
+    const a = f * Math.PI * 2;
+    return [cx + opts.radius * Math.sin(a), cy - opts.radius * Math.cos(a)] as const;
+  };
+  let [x, y] = at(fracs[0]);
+  await touchAt(x, y);
+  pointer('pointerdown', el, x, y);
+  await wait(opts.hold ?? 260);
+  for (let i = 1; i < fracs.length; i++) {
+    const a = fracs[i - 1];
+    const b = fracs[i];
+    await tween(opts.ms ?? Math.max(450, Math.abs(b - a) * 2600), (k) => {
+      [x, y] = at(a + (b - a) * k);
+      moveFinger(x, y);
+      pointer('pointermove', el, x, y);
+    });
+    await wait(opts.hold ?? 260);
+  }
+  pointer('pointerup', el, x, y);
+  pressFinger(false);
+  await wait(140);
+  showFinger(false);
+}
+
+/** Nudge the page as a finger would before touching, e.g. to wake an auto-hiding UI. */
+export function stir(el: Element = document.body) {
+  pointer('pointermove', el, innerWidth / 2, innerHeight / 2);
 }
 
 /** Type into a (React-controlled) field at a human pace, with small hesitations. */
