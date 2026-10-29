@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bucketDays, bySubject, focusPeriods, goalDays, sessionShape, subjectTree, tasksDone, weekHourGrid } from '@/engine/stats';
+import { bucketDays, bySubject, focusPeriods, goalDays, hourBySource, sessionShape, subjectTree, tasksDone, weekHourGrid } from '@/engine/stats';
 import { HOUR, MINUTE } from '@/engine/time';
 import type { Board, Folder, Session, Task } from '@/engine/types';
 
@@ -139,5 +139,17 @@ describe('bySubject, tasksDone, goalDays', () => {
     expect(tasksDone([t(MON + 12 * HOUR), t(MON - 2 * 86400000), t()], '2026-10-19', '2026-10-25')).toBe(1);
     const sum = { day: '2026-10-19', focusMs: HOUR, breakMs: 0, overtimeMs: 0, sessions: 1, bySource: { timed: HOUR, adjusted: 0, manual: 0, imported: 0 } };
     expect(goalDays(['2026-10-19', '2026-10-20'], new Map([[sum.day, sum]]), [...ALL], 2 * HOUR).map((g) => g.ratio)).toEqual([0.5, 0]);
+  });
+});
+
+describe('hourBySource', () => {
+  it('spreads worked time over the wall-clock span so a paused session still adds up', () => {
+    // 9:30–11:30 on the clock, 30 min of it paused → 90 min worked, spread over 3 hours.
+    const s = S({ start: MON + 9.5 * HOUR, actualMs: 90 * MINUTE, end: MON + 11.5 * HOUR, pausedMs: 30 * MINUTE });
+    const h = hourBySource([s, S({ start: MON + 14 * HOUR, actualMs: HOUR, source: 'manual' })], [...ALL]);
+    expect(h[9].timed + h[10].timed + h[11].timed).toBeCloseTo(90 * MINUTE);
+    expect(h[10].timed).toBeCloseTo(45 * MINUTE);
+    expect(h[14].manual).toBe(HOUR);
+    expect(hourBySource([s], ['manual']).every((x) => x.timed === 0)).toBe(true);
   });
 });

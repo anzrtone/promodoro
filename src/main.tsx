@@ -4,7 +4,7 @@ import '@/styles/index.css';
 import { App } from './App';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { requestPersistence } from '@/db/schema';
-import { ensureSeeded } from '@/db/settings';
+import { ensureSeeded, loadSettings } from '@/db/settings';
 import { loadPlatform } from '@/platform';
 import { engine } from '@/hooks/usePromodoroEngine';
 import { startAutoBackupLoop } from '@/features/autoBackup';
@@ -22,6 +22,8 @@ async function boot() {
     await ensurePreviewSeeded();
   }
   await ensureSeeded();
+  // Screens read settings from memory from their first frame, never the defaults.
+  await loadSettings();
   void requestPersistence();
   await engine.start();
   startAutoBackupLoop();
@@ -57,7 +59,13 @@ boot().catch((err) => {
 /** Dev-only admin panel, in its own React root so it never touches the app tree. */
 async function mountDevPanel() {
   const { DevPanel } = await import('@/dev/DevPanel');
+  const { NotificationShade } = await import('@/dev/NotificationShade');
   const el = document.createElement('div');
   document.body.appendChild(el);
-  createRoot(el).render(<DevPanel />);
+  createRoot(el).render(
+    <>
+      <DevPanel />
+      <NotificationShade />
+    </>,
+  );
 }

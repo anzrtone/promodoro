@@ -1,9 +1,9 @@
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { HardDriveDownload } from 'lucide-react';
 import { db } from '@/db/schema';
 import { updateSettings, useSettings } from '@/db/settings';
 import { DAY, formatAgo, formatTimeOfDay, MINUTE } from '@/engine/time';
-import { lastSessionEnd } from '@/engine/timeline';
+import { lastSessionSince } from '@/db/repo';
 import { navigate } from '@/features/nav';
 import { usePromodoroEngine } from '@/hooks/usePromodoroEngine';
 import { PromodoroCard } from '@/components/PromodoroCard';
@@ -31,7 +31,7 @@ export function FocusScreen() {
 /** "Last session ended 47 min ago": always visible, so forgetting to start is never a mystery. */
 function LastSessionLine() {
   const { primary, now } = usePromodoroEngine();
-  const last = useLiveQuery(async () => lastSessionEnd(await db.sessions.where('end').above(Date.now() - 14 * DAY).toArray()), []);
+  const last = useCachedLiveQuery('sessions:last', () => lastSessionSince(Date.now() - 14 * DAY), [], undefined);
   if (primary || !last) return <div className="h-6" />;
   const ago = now - last.end;
   return (
@@ -52,7 +52,7 @@ function LastSessionLine() {
 /** A gentle, rare nudge. Never nags; disappears for good once auto-backup is on. */
 function BackupReminder() {
   const s = useSettings();
-  const sessions = useLiveQuery(() => db.sessions.count(), [], 0);
+  const sessions = useCachedLiveQuery('sessions:count', () => db.sessions.count(), [], 0);
   const now = Date.now();
   const last = s.autoBackup.enabled && !s.autoBackup.lastError ? now : s.lastBackupAt ?? s.installedAt;
   const due = sessions >= 5 && now - last > s.backupReminderDays * DAY && now > s.backupSnoozedUntil;

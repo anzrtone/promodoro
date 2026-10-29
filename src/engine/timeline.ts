@@ -1,6 +1,6 @@
 /** Pure layout math for the history timeline (day strip, lanes, gaps, memory anchors). */
 import { MINUTE } from './time';
-import type { AnyEvent, Session } from './types';
+import type { AnyEvent } from './types';
 
 export interface Interval {
   start: number;
@@ -102,16 +102,6 @@ export function attachAnchors(gaps: Gap[], events: AnyEvent[], fmt: (ms: number)
         return { ts: e.ts, kind, text: `You ${verb} at ${fmt(e.ts)}` };
       }),
   }));
-}
-
-/** The most recent non-bulk session end, for "Last session ended X min ago". */
-export function lastSessionEnd(sessions: Session[]): Session | undefined {
-  let best: Session | undefined;
-  for (const s of sessions) {
-    if (s.deleted || s.bulk) continue;
-    if (!best || s.end > best.end) best = s;
-  }
-  return best;
 }
 
 /** Snap a timestamp to a minute grid (used by drag-to-claim). */

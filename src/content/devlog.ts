@@ -18,6 +18,24 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.5',
+    date: '2026-10-29',
+    note: 'Pomo learned to flip back through your days, months and years, lets you fix the times on anything you logged, and got a lot quicker on its feet.',
+    changes: [
+      { kind: 'new', text: 'Stats opens on a single day now, with an hour-by-hour chart, your longest sitting and how close you got to your daily goal.' },
+      { kind: 'new', text: 'Stats ranges are now 1 day, 7 days, Monthly and Yearly, with ‹ › arrows (just like the timeline) to step back through past days, months and years. Tap “Today” to jump back.' },
+      { kind: 'new', text: 'Change when a session happened: tap the pencil next to “when” to pick a new day, start or end. Worked time, totals and stats update to match.' },
+      { kind: 'better', text: 'A month or year in progress is compared with the same stretch of the one before (“the same days of September”), not the whole thing.' },
+      { kind: 'better', text: 'Switching tabs is much faster, and the app no longer slows down while a timer is running.' },
+      { kind: 'better', text: 'The notification timer keeps up even while the app sleeps: at zero it flips into a “+” overtime count, or tidies itself away when the session is over.' },
+      { kind: 'better', text: 'The notification timer is slimmer, with more room for the clock.' },
+      { kind: 'better', text: 'Memory joggers (“You opened Promodoro at 5:12 PM”) are cleared once their day is over, so your notebook stays light.' },
+      { kind: 'better', text: 'Synced notebooks can now only be changed by your own paired devices, with no exceptions for older versions of the app.' },
+      { kind: 'better', text: 'The “Nice to meet you” sticker has a new Pomo, and an empty day page now shows a sleepy one.' },
+      { kind: 'fixed', text: 'A paused overtime timer in the notification no longer shows a stray “+” sign.' },
+    ],
+  },
+  {
     version: '0.1.4',
     date: '2026-10-23',
     note: 'Pomo moved into your notification bar, checks in with a report before bed, hands out seven new stickers, and keeps your synced notebook locked up tight.',

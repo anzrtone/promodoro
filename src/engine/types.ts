@@ -59,7 +59,7 @@ export type EventMap = {
   /** Move the session to another subject (null = none); `label` follows when it was the subject's name. */
   'timer.subject': { boardId: string | null; label?: string };
   'session.manual': ManualSessionPayload;
-  'session.edit': { sessionId: string; patch: Partial<Pick<Session, 'label' | 'boardId' | 'note' | 'mood'>> };
+  'session.edit': { sessionId: string; patch: SessionPatch };
   'session.delete': { sessionId: string };
   'session.restore': { sessionId: string };
   'import.batch': { count: number; format: 'csv' | 'json'; file?: string };
@@ -186,6 +186,11 @@ export interface Session {
   createdAt: number;  /** Last change, for cross-device sync (stamped automatically by the database). */
   updatedAt?: number;
 }
+
+/** What an edit may change: the details, or (via `retime`) the times and everything derived from them. */
+export type SessionPatch = Partial<
+  Pick<Session, 'label' | 'boardId' | 'note' | 'mood' | 'start' | 'end' | 'day' | 'actualMs' | 'timedMs' | 'recoveredMs' | 'pausedMs' | 'overtimeMs' | 'source'>
+>;
 
 export interface Preset {
   id: string;

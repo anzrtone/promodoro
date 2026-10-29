@@ -17,8 +17,12 @@ import { cx, Sheet } from './ui';
 export interface StatsSnapshot {
   name: string;
   rangeLabel: string;
-  /** "7 days", "this year"… */
+  /** "today", "last 7 days", "October", "2026"… */
   rangeName: string;
+  /** What the range is compared with: "yesterday", "the previous 7 days", "September"… */
+  vs: string;
+  /** Title of the bar chart: "focus by hour", "focus per day", "focus per month". */
+  barsTitle: string;
   totals: { focusMs: number; activeDays: number; totalDays: number; avgMs: number; sessions: number; tasksDone: number; prevFocusMs?: number };
   bars: Array<{ label: string; ms: number }>;
   periods: Array<{ day: string; blocks: Array<{ from: number; to: number; color: string }> }>;
@@ -120,7 +124,7 @@ export async function renderStatsCard(canvas: HTMLCanvasElement, s: StatsSnapsho
       blocks.push({
         h: 70 + H + 50,
         draw: (c, y) => {
-          title(c, y, 'focus per day');
+          title(c, y, s.barsTitle);
           const max = Math.max(HOUR, ...s.bars.map((b) => b.ms));
           const best = Math.max(...s.bars.map((b) => b.ms));
           const n = s.bars.length;
@@ -444,10 +448,10 @@ export async function renderStatsCard(canvas: HTMLCanvasElement, s: StatsSnapsho
   if (s.totals.prevFocusMs !== undefined && s.totals.focusMs - s.totals.prevFocusMs >= 60_000) {
     muted(c, 0.55);
     c.font = '700 26px Nunito';
-    c.fillText(`+${formatDuration(s.totals.focusMs - s.totals.prevFocusMs)} more than the ${s.rangeName} before`, X0, 245);
+    c.fillText(`+${formatDuration(s.totals.focusMs - s.totals.prevFocusMs)} more than ${s.vs}`, X0, 245);
     c.globalAlpha = 1;
   }
-  const pomo = await loadImg(STICKER_ART[s.totals.focusMs ? 'smitten' : 'shy']);
+  const pomo = await loadImg(STICKER_ART[s.totals.focusMs ? 'smitten' : 'sleeping']);
   c.save();
   c.translate(W - 190, 140);
   c.rotate(0.08);

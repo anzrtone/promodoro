@@ -3,9 +3,9 @@
  * with *texture* telling time sources apart, so they read in colour-blind and print
  * contexts too; every bar has a tooltip and there's a table view.
  */
-import { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { Table2, BarChart3, ChevronRight, Share2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
+import { Table2, BarChart3, ChevronLeft, ChevronRight, Share2 } from 'lucide-react';
 import { useViewDb } from '@/features/demo';
 import { updateSettings, useSettings } from '@/db/settings';
 import {
@@ -15,6 +15,7 @@ import {
   focusFor,
   focusPeriods,
   goalDays,
+  hourBySource,
   hourProfile,
   pagesFilled,
   rangeStats,
@@ -27,9 +28,9 @@ import {
   type SessionShape,
   type TreeNode,
 } from '@/engine/stats';
-import { addDays, dayStart, DAY, formatDayLabel, formatDuration, formatHours, HOUR, today } from '@/engine/time';
+import { addDays, addMonths, dayStart, DAY, formatDayLabel, formatDuration, formatHours, HOUR, today } from '@/engine/time';
 import type { DailySummary, TimeSource } from '@/engine/types';
-import { cx, Section } from '@/components/ui';
+import { cx, Section, Segmented } from '@/components/ui';
 import { FocusPeriods, GoalCalendar, GoalPicker, NO_SUBJECT_COLOR, SubjectDonut, topSlices } from '@/components/StatsWidgets';
 import { ShareStatsSheet, type StatsSnapshot } from '@/components/StatsCard';
 
@@ -41,17 +42,86 @@ const TEXTURE: Record<TimeSource, React.CSSProperties> = {
 };
 const SHORT: Record<TimeSource, string> = { timed: 'Timed', adjusted: 'Adjusted', manual: 'By hand', imported: 'Imported' };
 
-const RANGES = [
-  { days: 7, label: '7 days', unit: 'day', title: 'This week' },
-  { days: 30, label: '30 days', unit: 'day', title: 'Last 30 days' },
-  { days: 90, label: '90 days', unit: 'week', title: 'Last 90 days, by week' },
-  { days: 365, label: 'Year', unit: 'month', title: 'Last year, by month' },
-] as const;
-type Range = (typeof RANGES)[number];
+type Range = 'day' | 'week' | 'month' | 'year';
+type Unit = 'hour' | 'day' | 'month';
+const RANGES: Array<{ value: Range; label: string }> = [
+  { value: 'day', label: '1 day' },
+  { value: 'week', label: '7 days' },
+  { value: 'month', label: 'Monthly' },
+  { value: 'year', label: 'Yearly' },
+];
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const hourLabel = (h: number) => (h === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`);
+const hourLabel = (h: number) => (h % 24 === 0 ? '12am' : h === 12 ? '12pm' : h < 12 ? `${h}am` : `${h - 12}pm`);
 const localDate = (day: string) => new Date(dayStart(day) + DAY / 2);
+const shortDate = (day: string) => localDate(day).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+const monthName = (day: string, month: 'long' | 'short' = 'long') => localDate(day).toLocaleDateString(undefined, { month });
+const daysBetween = (a: string, b: string) => Math.round((dayStart(b) - dayStart(a)) / DAY) + 1;
+const minDay = (a: string, b: string) => (a < b ? a : b);
+
+/**
+ * The stretch of days a range shows around `anchor`: one day, the 7 days ending on it, or its
+ * calendar month / year (cut off at today). The comparison is the stretch just before, trimmed to
+ * the same length, so day 12 of a month is held up against days 1–12 of the last one, not all 31.
+ */
+interface Period {
+  start: string;
+  end: string;
+  prevStart: string;
+  prevEnd: string;
+  unit: Unit;
+  /** Header between the arrows. */
+  label: string;
+  /** Chart title. */
+  title: string;
+  /** "focus, ___" */
+  name: string;
+  /** "+2h vs ___" */
+  vs: string;
+}
+
+function periodOf(range: Range, anchor: string, t: string): Period {
+  if (range === 'day') {
+    const prev = addDays(anchor, -1);
+    return { start: anchor, end: anchor, prevStart: prev, prevEnd: prev, unit: 'hour', label: formatDayLabel(anchor), title: 'Hour by hour', name: anchor === t ? 'today' : formatDayLabel(anchor).toLowerCase(), vs: anchor === t ? 'yesterday' : 'the day before' };
+  }
+  if (range === 'week') {
+    const start = addDays(anchor, -6);
+    return { start, end: anchor, prevStart: addDays(start, -7), prevEnd: addDays(start, -1), unit: 'day', label: anchor === t ? 'Last 7 days' : `${shortDate(start)} – ${shortDate(anchor)}`, title: 'Day by day', name: anchor === t ? 'last 7 days' : `${shortDate(start)} – ${shortDate(anchor)}`, vs: 'the previous 7 days' };
+  }
+  const months = range === 'month' ? 1 : 12;
+  const start = range === 'month' ? `${anchor.slice(0, 8)}01` : `${anchor.slice(0, 5)}01-01`;
+  const last = addDays(addMonths(start, months), -1);
+  const end = minDay(last, t);
+  const prevStart = addMonths(start, -months);
+  const prevEnd = minDay(addDays(prevStart, daysBetween(start, end) - 1), addDays(start, -1));
+  const partial = end < last;
+  if (range === 'month') {
+    const prev = monthName(prevStart);
+    return { start, end, prevStart, prevEnd, unit: 'day', label: localDate(start).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }), title: 'Day by day', name: monthName(start), vs: partial ? `the same days of ${prev}` : prev };
+  }
+  const year = start.slice(0, 4);
+  const prev = prevStart.slice(0, 4);
+  return { start, end, prevStart, prevEnd, unit: 'month', label: year, title: 'Month by month', name: year, vs: partial ? `this point in ${prev}` : prev };
+}
+
+/** Step the anchor one whole range back or forward, never past today. */
+function stepAnchor(range: Range, anchor: string, dir: 1 | -1, t: string): string {
+  const next = range === 'day' ? addDays(anchor, dir) : range === 'week' ? addDays(anchor, 7 * dir) : addMonths(anchor, dir * (range === 'month' ? 1 : 12));
+  return minDay(next, t);
+}
+
+/** One bar of the main chart (and one row of its table). */
+interface Col {
+  key: string;
+  tick: string;
+  /** Show the tick label (dense charts label every few bars). */
+  showTick: boolean;
+  long: string;
+  bySource: Record<TimeSource, number>;
+  overtimeMs: number;
+  current: boolean;
+}
 
 /** "+1h 20m vs previous 7 days"; never coloured, it's information not a grade. Durations under a minute apart count as the same. */
 function delta(cur: number, prev: number, fmt: (n: number) => string, vs: string): string | undefined {
@@ -64,108 +134,168 @@ function delta(cur: number, prev: number, fmt: (n: number) => string, vs: string
 export function StatsScreen() {
   const settings = useSettings();
   const sources = settings.chartSources;
-  const [range, setRange] = useState<Range>(RANGES[0]);
+  const dailyGoalMs = settings.dailyGoalMs;
+  const profileName = settings.profile.name;
+  const [range, setRange] = useState<Range>('day');
+  const [anchor, setAnchor] = useState(today);
   const [table, setTable] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const { days } = range;
-  const end = today();
-  const start = addDays(end, -(days - 1));
-  const prevStart = addDays(start, -days);
-  const dayList = Array.from({ length: days }, (_, i) => addDays(start, i));
-  const buckets = bucketDays(dayList, range.unit);
-  const bucketIndex = new Map(buckets.flatMap((b, i) => b.days.map((d) => [d, i] as const)));
+  const t = today();
+  const period = useMemo(() => periodOf(range, anchor, t), [range, anchor, t]);
+  const { start, end, prevStart, prevEnd, unit, vs } = period;
+  const days = daysBetween(start, end);
+  const isNow = end === t;
+  const from = dayStart(start);
+  const to = dayStart(addDays(end, 1));
 
   // Pomo's tour shows sample data here; otherwise this is the real notebook.
   const db = useViewDb();
-  const both = useLiveQuery(() => db.daily.where('day').between(prevStart, end, true, true).toArray(), [db, prevStart, end], []);
-  const all = useLiveQuery(() => db.daily.toArray(), [db], []);
-  const sessionsRaw = useLiveQuery(() => db.sessions.where('end').above(dayStart(start)).filter((s) => !s.deleted).toArray(), [db, start], []);
-  const boards = useLiveQuery(() => db.boards.toArray(), [db], []);
-  const folders = useLiveQuery(() => db.folders.toArray(), [db], []);
-  const tasks = useLiveQuery(() => db.tasks.toArray(), [db], []);
-  const stickers = useLiveQuery(() => db.stickers.where('earnedAt').above(dayStart(start)).toArray(), [db, start], []);
-
-  const summaries = both.filter((s) => s.day >= start);
-  const prevSummaries = both.filter((s) => s.day < start);
-  const sessions = sessionsRaw.filter((s) => s.day >= start);
-  const byDay = new Map(summaries.map((s) => [s.day, s]));
-  const stats = rangeStats(summaries, sources);
-  const prev = rangeStats(prevSummaries, sources);
-  const allTime = all.reduce((a, s) => a + focusFor(s, sources), 0);
-  const vs = `previous ${range.days === 365 ? 'year' : `${days} days`}`;
+  const k = `stats:${db.name}`;
+  const both = useCachedLiveQuery(`${k}:daily:${prevStart}:${end}`, () => db.daily.where('day').between(prevStart, end, true, true).toArray(), [db, prevStart, end], []);
+  const all = useCachedLiveQuery(`${k}:daily`, () => db.daily.toArray(), [db], []);
+  const sessionsRaw = useCachedLiveQuery(`${k}:sessions:${start}:${end}`, () => db.sessions.where('end').above(from).filter((s) => !s.deleted && s.start < to).toArray(), [db, from, to], []);
+  const boards = useCachedLiveQuery(`${k}:boards`, () => db.boards.toArray(), [db], []);
+  const folders = useCachedLiveQuery(`${k}:folders`, () => db.folders.toArray(), [db], []);
+  const tasks = useCachedLiveQuery(`${k}:tasks`, () => db.tasks.toArray(), [db], []);
+  const stickers = useCachedLiveQuery(`${k}:stickers:${start}:${end}`, () => db.stickers.where('earnedAt').between(from, to).toArray(), [db, from, to], []);
 
   const toggleSource = (s: TimeSource) => {
     const next = sources.includes(s) ? sources.filter((x) => x !== s) : [...sources, s];
     if (next.length) void updateSettings({ chartSources: next });
   };
 
-  const done = tasksDone(tasks, start, end);
-  const prevDone = tasksDone(tasks, prevStart, addDays(start, -1));
-  const board = (id?: string) => (id ? boards.find((b) => b.id === id) : undefined);
-  const colorOf = (id?: string) => board(id)?.color ?? NO_SUBJECT_COLOR;
-  const nameOf = (id?: string) => board(id)?.name ?? 'No subject';
-  const periodDays = dayList.slice(-31);
-  const periods = focusPeriods(sessions, sources);
-  const slices = topSlices(bySubject(sessions, sources).map((r) => ({ name: nameOf(r.boardId || undefined), color: colorOf(r.boardId || undefined), ms: r.ms })));
-  const goal = goalDays(dayList, byDay, sources, settings.dailyGoalMs);
-  const hours = hourProfile(sessions, sources);
-  const shape = sessionShape(sessions, sources);
-  const rangeLabel = `${localDate(start).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${localDate(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
-  const snapshot: StatsSnapshot = {
-    name: settings.profile.name,
-    rangeLabel,
-    rangeName: range.days === 365 ? 'this year' : `${days} days`,
-    totals: { focusMs: stats.totalMs, activeDays: stats.activeDays, totalDays: days, avgMs: stats.avgPerActiveDay, sessions: stats.sessions, tasksDone: done, prevFocusMs: prev.totalMs || undefined },
-    bars: buckets.map((b) => ({ label: barTick(b, range.unit), ms: b.days.reduce((a, d) => a + (byDay.get(d) ? focusFor(byDay.get(d)!, sources) : 0), 0) })),
-    periods: periodDays.map((d) => ({ day: d, blocks: (periods.get(d) ?? []).map((p) => ({ from: p.from, to: p.to, color: colorOf(p.boardId) })) })),
-    slices,
-    goal: { goalMs: settings.dailyGoalMs, days: goal },
-    hours,
-    shape,
-    stickers: stickers.map((s) => s.id),
-  };
+  // Everything below is pure in the query results; keep it off unrelated renders (sheets, toggles).
+  const { cols, stats, prev, allTime, done, prevDone, colorOf, nameOf, periodDays, periods, slices, goal, snapshot, tree, weekGrid } = useMemo(() => {
+    const dayList = Array.from({ length: days }, (_, i) => addDays(start, i));
+    const buckets = bucketDays(dayList, unit === 'hour' ? 'day' : unit);
+    const bucketIndex = new Map(buckets.flatMap((b, i) => b.days.map((d) => [d, i] as const)));
+    const summaries = both.filter((s) => s.day >= start && s.day <= end);
+    const prevSummaries = both.filter((s) => s.day >= prevStart && s.day <= prevEnd);
+    const sessions = sessionsRaw.filter((s) => s.day >= start && s.day <= end);
+    const byDay = new Map(summaries.map((s) => [s.day, s]));
+    const stats = rangeStats(summaries, sources);
+    const prev = rangeStats(prevSummaries, sources);
+    const allTime = all.reduce((a, s) => a + focusFor(s, sources), 0);
 
-  const tree = subjectTree(sessions, sources, { boards, folders, tasks, bucketOf: (d) => bucketIndex.get(d) ?? -1, buckets: buckets.length });
+    const nowHour = new Date().getHours();
+    const dense = buckets.length > 10;
+    const cols: Col[] =
+      unit === 'hour'
+        ? hourBySource(sessions, ALL_SOURCES).map((bySource, h) => ({
+            key: String(h),
+            tick: hourLabel(h).slice(0, -1),
+            showTick: h % 3 === 0,
+            long: `${hourLabel(h)} – ${hourLabel(h + 1)}`,
+            bySource,
+            overtimeMs: 0,
+            current: start === t && h === nowHour,
+          }))
+        : buckets.map((b, i) => ({
+            key: b.key,
+            tick: unit === 'month' ? bucketLabel(b, unit) : dense ? String(Number(b.key.slice(8))) : localDate(b.key).toLocaleDateString(undefined, { weekday: 'narrow' }),
+            showTick: unit === 'month' || !dense || i % 5 === 0 || i === buckets.length - 1,
+            long: bucketLabel(b, unit, true),
+            ...sumBucket(b, byDay),
+            current: b.days.includes(t),
+          }));
+
+    const done = tasksDone(tasks, start, end);
+    const prevDone = tasksDone(tasks, prevStart, prevEnd);
+    const boardById = new Map(boards.map((b) => [b.id, b]));
+    const colorOf = (id?: string) => (id ? boardById.get(id)?.color : undefined) ?? NO_SUBJECT_COLOR;
+    const nameOf = (id?: string) => (id ? boardById.get(id)?.name : undefined) ?? 'No subject';
+    const periodDays = dayList.slice(-31);
+    const periods = focusPeriods(sessions, sources);
+    const slices = topSlices(bySubject(sessions, sources).map((r) => ({ name: nameOf(r.boardId || undefined), color: colorOf(r.boardId || undefined), ms: r.ms })));
+    const goal = goalDays(dayList, byDay, sources, dailyGoalMs);
+    const hours = hourProfile(sessions, sources);
+    const shape = sessionShape(sessions, sources);
+    const rangeLabel =
+      days === 1
+        ? localDate(start).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })
+        : `${shortDate(start)} – ${localDate(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    const snapshot: StatsSnapshot = {
+      name: profileName,
+      rangeLabel,
+      rangeName: period.name,
+      vs,
+      barsTitle: unit === 'hour' ? 'focus by hour' : unit === 'month' ? 'focus per month' : 'focus per day',
+      totals: { focusMs: stats.totalMs, activeDays: stats.activeDays, totalDays: days, avgMs: stats.avgPerActiveDay, sessions: stats.sessions, tasksDone: done, prevFocusMs: prev.totalMs || undefined },
+      bars: cols.map((c) => ({ label: c.tick, ms: ALL_SOURCES.reduce((a, s) => a + (sources.includes(s) ? c.bySource[s] : 0), 0) })),
+      periods: periodDays.map((d) => ({ day: d, blocks: (periods.get(d) ?? []).map((p) => ({ from: p.from, to: p.to, color: colorOf(p.boardId) })) })),
+      slices,
+      goal: { goalMs: dailyGoalMs, days: goal },
+      hours,
+      shape,
+      stickers: stickers.map((s) => s.id),
+    };
+
+    const tree = subjectTree(sessions, sources, { boards, folders, tasks, bucketOf: (d) => bucketIndex.get(d) ?? -1, buckets: buckets.length });
+    const weekGrid = weekHourGrid(sessions, sources);
+    return { cols, stats, prev, allTime, done, prevDone, colorOf, nameOf, periodDays, periods, slices, goal, snapshot, tree, weekGrid };
+  }, [both, all, sessionsRaw, boards, folders, tasks, stickers, sources, period, days, start, end, prevStart, prevEnd, unit, vs, t, dailyGoalMs, profileName]);
+  const { hours, shape } = snapshot;
+  const oneDay = range === 'day';
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4">
-      {/* filters: one row above the charts */}
-      <div className="flex flex-wrap items-center gap-2" data-tour="stats-filters">
-        <div className="inline-flex rounded-full border border-rule bg-sheet p-1">
-          {RANGES.map((r) => (
-            <button key={r.days} className={cx('pill px-3 py-1.5 text-[13px]', range.days === r.days ? 'bg-halo' : 'text-ink/60')} onClick={() => setRange(r)}>
-              {r.label}
+      {/* which stretch of time, stepped like the timeline; then what counts */}
+      <div className="space-y-3" data-tour="stats-filters">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-1">
+            <button className="btn-ghost !p-2" onClick={() => setAnchor(stepAnchor(range, anchor, -1, t))} aria-label="Earlier">
+              <ChevronLeft size={20} />
+            </button>
+            <h2 className="min-w-[10ch] text-center font-display text-xl font-semibold">{period.label}</h2>
+            <button className="btn-ghost !p-2" onClick={() => setAnchor(stepAnchor(range, anchor, 1, t))} aria-label="Later" disabled={isNow}>
+              <ChevronRight size={20} />
+            </button>
+            {!isNow && (
+              <button className="chip ml-1" onClick={() => setAnchor(t)}>
+                Today
+              </button>
+            )}
+          </div>
+          <Segmented<Range> size="sm" value={range} onChange={setRange} options={RANGES} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-ink/45">counting</span>
+          {ALL_SOURCES.map((s) => (
+            <button key={s} className={cx('chip', sources.includes(s) && 'chip-on')} onClick={() => toggleSource(s)} title={SOURCE_LABEL[s]}>
+              <span className="inline-block h-3 w-4 rounded-sm" style={TEXTURE[s]} />
+              {SHORT[s]}
             </button>
           ))}
-        </div>
-        <span className="ml-1 text-xs font-bold uppercase tracking-wide text-ink/45">counting</span>
-        {ALL_SOURCES.map((s) => (
-          <button key={s} className={cx('chip', sources.includes(s) && 'chip-on')} onClick={() => toggleSource(s)} title={SOURCE_LABEL[s]}>
-            <span className="inline-block h-3 w-4 rounded-sm" style={TEXTURE[s]} />
-            {SHORT[s]}
+          <button className="btn-primary ml-auto !py-1.5 text-[13px]" onClick={() => setSharing(true)} data-tour="stats-share">
+            <Share2 size={15} /> Share
           </button>
-        ))}
-        <button className="btn-primary ml-auto !py-1.5 text-[13px]" onClick={() => setSharing(true)} data-tour="stats-share">
-          <Share2 size={15} /> Share
-        </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-tour="stats-tiles">
-        <Tile big label={`focus, last ${range.days === 365 ? 'year' : `${days} days`}`} value={formatDuration(stats.totalMs)} sub={delta(stats.totalMs, prev.totalMs, formatDuration, vs)} />
-        <Tile label="per active day" value={formatDuration(stats.avgPerActiveDay)} sub={delta(stats.avgPerActiveDay, prev.avgPerActiveDay, formatDuration, vs)} />
+        <Tile big label={`focus, ${period.name}`} value={formatDuration(stats.totalMs)} sub={delta(stats.totalMs, prev.totalMs, formatDuration, vs)} />
+        {oneDay ? (
+          <Tile label="longest sitting" value={shape.longestMs ? formatDuration(shape.longestMs) : '—'} />
+        ) : (
+          <Tile label="per active day" value={formatDuration(stats.avgPerActiveDay)} sub={delta(stats.avgPerActiveDay, prev.avgPerActiveDay, formatDuration, vs)} />
+        )}
         <Tile
           label="sessions"
           value={String(stats.sessions)}
           sub={[stats.overtimeMs ? `+${formatDuration(stats.overtimeMs)} flow overtime` : '', delta(stats.sessions, prev.sessions, String, vs)].filter(Boolean).join(' · ') || undefined}
         />
-        <Tile label="days focused" value={`${stats.activeDays}`} sub={`of ${days} days`} />
+        {oneDay ? (
+          <Tile label="of the daily goal" value={`${Math.round((goal[0]?.ratio ?? 0) * 100)}%`} sub={`${formatDuration(goal[0]?.ms ?? 0)} of ${formatDuration(dailyGoalMs)}`} />
+        ) : (
+          <Tile label="days focused" value={`${stats.activeDays}`} sub={`of ${days} days`} />
+        )}
         <Tile label="tasks done" value={String(done)} sub={prevDone || done ? delta(done, prevDone, String, vs) : undefined} />
         <Tile label="pages filled, all time" value={String(pagesFilled(all))} sub={`${formatHours(allTime)} total`} />
       </div>
 
       <Section
         tour="stats-bars"
-        title={range.title}
+        title={period.title}
         aside={
           <button className="btn-ghost !p-2" onClick={() => setTable(!table)} aria-label={table ? 'Show chart' : 'Show table'} title={table ? 'Chart view' : 'Table view'}>
             {table ? <BarChart3 size={16} /> : <Table2 size={16} />}
@@ -174,10 +304,10 @@ export function StatsScreen() {
       >
         {table ? (
           <div className="-mx-1 overflow-x-auto px-1">
-            <BucketTable buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} />
+            <BucketTable cols={cols} unit={unit} sources={sources} />
           </div>
         ) : (
-          <BucketBars buckets={buckets} unit={range.unit} byDay={byDay} sources={sources} />
+          <BucketBars cols={cols} sources={sources} />
         )}
         <p className="mt-2 text-xs text-ink/50">Imported lumps and hand-added time are labelled, never judged. Toggle them above to see averages your way.</p>
       </Section>
@@ -195,11 +325,14 @@ export function StatsScreen() {
         </Section>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Section tour="stats-when" title="When you focus">
-          <HourBars hours={hours} />
-          <WeekHeatmap grid={weekHourGrid(sessions, sources)} />
-        </Section>
+      {/* One day's rhythm is already the hour chart above, so it only gets the session shape. */}
+      <div className={cx('grid gap-4', !oneDay && 'md:grid-cols-2')}>
+        {!oneDay && (
+          <Section tour="stats-when" title="When you focus">
+            <HourBars hours={hours} />
+            <WeekHeatmap grid={weekGrid} />
+          </Section>
+        )}
         <Section tour="stats-shape" title="How sessions go">
           <ShapePanel shape={shape} />
         </Section>
@@ -213,12 +346,6 @@ export function StatsScreen() {
   );
 }
 
-function barTick(b: Bucket, unit: Range['unit']): string {
-  if (unit === 'day') return localDate(b.key).toLocaleDateString(undefined, { weekday: 'narrow' });
-  if (unit === 'week') return localDate(b.key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  return localDate(`${b.key}-15`).toLocaleDateString(undefined, { month: 'narrow' });
-}
-
 function Tile({ label, value, sub, big }: { label: string; value: string; sub?: string; big?: boolean }) {
   return (
     <div className={cx('card p-4', big && 'col-span-2 bg-paper sm:col-span-1')}>
@@ -229,9 +356,8 @@ function Tile({ label, value, sub, big }: { label: string; value: string; sub?: 
   );
 }
 
-function bucketLabel(b: Bucket, unit: Range['unit'], long = false): string {
+function bucketLabel(b: Bucket, unit: Exclude<Unit, 'hour'>, long = false): string {
   if (unit === 'day') return long ? formatDayLabel(b.key) : '';
-  if (unit === 'week') return `${long ? 'Week of ' : ''}${localDate(b.key).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
   return localDate(`${b.key}-15`).toLocaleDateString(undefined, long ? { month: 'long', year: 'numeric' } : { month: 'narrow' });
 }
 
@@ -247,29 +373,23 @@ function sumBucket(b: Bucket, byDay: Map<string, DailySummary>) {
   return { bySource, overtimeMs };
 }
 
-function BucketBars({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit: Range['unit']; byDay: Map<string, DailySummary>; sources: TimeSource[] }) {
-  const sums = buckets.map((b) => sumBucket(b, byDay));
-  const totals = sums.map((s) => ALL_SOURCES.reduce((a, k) => a + (sources.includes(k) ? s.bySource[k] : 0), 0));
+function BucketBars({ cols, sources }: { cols: Col[]; sources: TimeSource[] }) {
+  const totals = cols.map((c) => ALL_SOURCES.reduce((a, k) => a + (sources.includes(k) ? c.bySource[k] : 0), 0));
   const max = Math.max(HOUR, ...totals);
   const best = Math.max(...totals);
-  const dense = unit !== 'month' && buckets.length > 10;
-  const t = today();
   return (
     <div className="mb-6 flex h-48 items-end gap-[2px] border-b border-rule pb-0.5" role="img" aria-label="Focus over the range">
-      {buckets.map((b, i) => {
+      {cols.map((c, i) => {
         const total = totals[i];
-        const current = b.days.includes(t);
-        const tick =
-          unit === 'day' ? (dense ? String(Number(b.key.slice(8))) : localDate(b.key).toLocaleDateString(undefined, { weekday: 'narrow' })) : bucketLabel(b, unit);
         return (
-          <div key={b.key} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${bucketLabel(b, unit, true)}: ${formatDuration(total)}`}>
-            {total > 0 && (total === best || current) && <span className="mb-1 whitespace-nowrap text-[11px] font-bold text-ink/70">{total === best && <span className="text-[#E9B949]">★ </span>}{formatHours(total)}</span>}
+          <div key={c.key} className="group relative flex h-full flex-1 flex-col items-center justify-end" title={`${c.long}: ${formatDuration(total)}`}>
+            {total > 0 && (total === best || c.current) && <span className="mb-1 whitespace-nowrap text-[11px] font-bold text-ink/70">{total === best && <span className="text-[#E9B949]">★ </span>}{formatHours(total)}</span>}
             <div className="flex w-full max-w-[44px] flex-col-reverse gap-[2px] overflow-hidden rounded-t-[4px] group-hover:brightness-110" style={{ height: `${(total / max) * 100}%` }}>
-              {ALL_SOURCES.filter((s) => sources.includes(s) && sums[i].bySource[s] > 0).map((s) => (
-                <div key={s} style={{ ...TEXTURE[s], flexGrow: sums[i].bySource[s] }} />
+              {ALL_SOURCES.filter((s) => sources.includes(s) && c.bySource[s] > 0).map((s) => (
+                <div key={s} style={{ ...TEXTURE[s], flexGrow: c.bySource[s] }} />
               ))}
             </div>
-            <span className={cx('absolute -bottom-5 whitespace-nowrap text-[10px] font-bold text-ink/45', dense && i % (unit === 'week' ? 3 : 5) !== 0 && i !== buckets.length - 1 && 'hidden')}>{tick}</span>
+            <span className={cx('absolute -bottom-5 whitespace-nowrap text-[10px] font-bold', c.current ? 'text-tomato' : 'text-ink/45', !c.showTick && 'hidden')}>{c.tick}</span>
           </div>
         );
       })}
@@ -277,31 +397,34 @@ function BucketBars({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit
   );
 }
 
-function BucketTable({ buckets, unit, byDay, sources }: { buckets: Bucket[]; unit: Range['unit']; byDay: Map<string, DailySummary>; sources: TimeSource[] }) {
+function BucketTable({ cols, unit, sources }: { cols: Col[]; unit: Unit; sources: TimeSource[] }) {
   const shown = ALL_SOURCES.filter((s) => sources.includes(s));
+  const byHour = unit === 'hour';
+  // An hour table is mostly empty rows, so it lists only the hours that hold something.
+  const rows = [...cols].reverse().filter((c) => !byHour || shown.some((k) => c.bySource[k] > 0));
+  if (!rows.length) return <p className="font-hand text-[20px] text-ink/45">a blank page, nothing to tabulate</p>;
   return (
     <table className="w-full min-w-[480px] text-sm">
       <thead>
         <tr className="text-left text-xs uppercase tracking-wide text-ink/50">
-          <th className="py-1">{unit === 'day' ? 'Day' : unit === 'week' ? 'Week' : 'Month'}</th>
+          <th className="py-1">{byHour ? 'Hour' : unit === 'day' ? 'Day' : 'Month'}</th>
           {shown.map((s) => (
             <th key={s}>{SHORT[s]}</th>
           ))}
-          <th>Overtime</th>
+          {!byHour && <th>Overtime</th>}
           <th>Total</th>
         </tr>
       </thead>
       <tbody>
-        {[...buckets].reverse().map((b) => {
-          const s = sumBucket(b, byDay);
-          const total = shown.reduce((a, k) => a + s.bySource[k], 0);
+        {rows.map((c) => {
+          const total = shown.reduce((a, k) => a + c.bySource[k], 0);
           return (
-            <tr key={b.key} className="border-t border-rule">
-              <td className="py-1.5">{bucketLabel(b, unit, true)}</td>
+            <tr key={c.key} className="border-t border-rule">
+              <td className="py-1.5">{c.long}</td>
               {shown.map((x) => (
-                <td key={x}>{s.bySource[x] ? formatDuration(s.bySource[x]) : '—'}</td>
+                <td key={x}>{c.bySource[x] ? formatDuration(c.bySource[x]) : '—'}</td>
               ))}
-              <td>{s.overtimeMs ? formatDuration(s.overtimeMs) : '—'}</td>
+              {!byHour && <td>{c.overtimeMs ? formatDuration(c.overtimeMs) : '—'}</td>}
               <td className="font-bold">{total ? formatDuration(total) : '—'}</td>
             </tr>
           );

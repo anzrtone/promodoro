@@ -1,12 +1,12 @@
 /** The Sticker Book: collectible, gentle milestones. Nothing here can be lost. */
 import { useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { db } from '@/db/schema';
 import { STICKER_ART, STICKERS } from '@/features/stickers';
 import { cx } from '@/components/ui';
 
 export function StickerScreen() {
-  const earned = useLiveQuery(() => db.stickers.toArray(), [], []);
+  const earned = useCachedLiveQuery('stickers', () => db.stickers.toArray(), [], []);
   const got = new Map(earned.map((s) => [s.id, s]));
   useEffect(() => {
     // Opening the book marks new stickers as seen.

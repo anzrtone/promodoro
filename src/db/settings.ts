@@ -1,4 +1,5 @@
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useSyncExternalStore } from 'react';
+import { liveQuery } from 'dexie';
 import { DEFAULT_BREAK_POLICY, DEFAULT_PRESETS, type BreakPolicy } from '@/engine/cycle';
 import type { ModeChoice, TimeSource } from '@/engine/types';
 import type { AmbientId } from '@/audio/synth';
@@ -286,11 +287,43 @@ export async function ensureSeeded(): Promise<void> {
   });
 }
 
+/*
+ * One app-wide live copy of the settings row. Every useSettings() reads it, instead of each
+ * component opening its own IndexedDB subscription and rendering once with the defaults first.
+ */
+let stored: AppSettings | undefined;
+const settingsSubs = new Set<() => void>();
+let watching: Promise<void> | null = null;
+
+/** Start watching the settings row; resolves once the first value is in. Boot awaits it before the first render. */
+export function loadSettings(): Promise<void> {
+  watching ??= new Promise<void>((resolve, reject) => {
+    liveQuery(getSettings).subscribe({
+      next: (s) => {
+        stored = s;
+        resolve();
+        settingsSubs.forEach((f) => f());
+      },
+      error: (err) => {
+        console.error('[settings] live query failed', err);
+        reject(err);
+      },
+    });
+  });
+  return watching;
+}
+
+function subscribeSettings(fn: () => void) {
+  void loadSettings().catch(() => {});
+  settingsSubs.add(fn);
+  return () => void settingsSubs.delete(fn);
+}
+
 export function useSettings(): AppSettings {
-  return useLiveQuery(getSettings, [], DEFAULT_SETTINGS);
+  return useSyncExternalStore(subscribeSettings, () => stored ?? DEFAULT_SETTINGS);
 }
 
 /** Undefined until the stored settings have loaded (so first-run screens don't flash for returning users). */
 export function useStoredSettings(): AppSettings | undefined {
-  return useLiveQuery(getSettings, []);
+  return useSyncExternalStore(subscribeSettings, () => stored);
 }

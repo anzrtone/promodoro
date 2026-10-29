@@ -1,11 +1,13 @@
 /** Session details, claim-a-gap, and manual / bulk entry sheets. */
 import { useEffect, useState } from 'react';
+import { Pencil, Undo2 } from 'lucide-react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { addManualSession, deleteSession, editSession, restoreSession } from '@/db/repo';
 import { useSettings } from '@/db/settings';
 import { SOURCE_LABEL } from '@/engine/stats';
-import { dayStart, formatDuration, formatTimeOfDay, HOUR, localDay, MINUTE, today } from '@/engine/time';
+import { dayStart, formatDayLabel, formatDuration, formatTimeOfDay, HOUR, localDay, MINUTE, today } from '@/engine/time';
+import { retime } from '@/engine/timer';
 import type { Mood, Phase, Session } from '@/engine/types';
 import { phaseLabel } from '@/engine/cycle';
 import { evaluateSession, award } from '@/features/stickers';
@@ -44,18 +46,40 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
   const [label, setLabel] = useState('');
   const [boardId, setBoardId] = useState<string | undefined>();
   const [mood, setMood] = useState<Mood | undefined>();
+  const [retiming, setRetiming] = useState(false);
+  const [day, setDay] = useState(today());
+  const [from, setFrom] = useState('09:00');
+  const [to, setTo] = useState('09:25');
+  const resetTimes = (x: Session) => {
+    setRetiming(false);
+    setDay(localDay(x.start, x.tz));
+    setFrom(toHHMM(x.start));
+    setTo(toHHMM(x.end));
+  };
   useEffect(() => {
     if (!session) return;
     setNote(session.note ?? '');
     setLabel(session.label ?? '');
     setBoardId(session.boardId);
     setMood(session.mood);
+    resetTimes(session);
   }, [session]);
   if (!session) return null;
   const s = session;
 
+  // New times read the way the claim sheet reads them: an end at or before the start means past midnight.
+  // A field left alone keeps its exact instant, seconds and all.
+  const sameDay = day === localDay(s.start, s.tz);
+  const start = sameDay && from === toHHMM(s.start) ? s.start : fromHHMM(day, from);
+  let end = sameDay && to === toHHMM(s.end) ? s.end : fromHHMM(day, to);
+  if (end <= start) end += 24 * HOUR;
+  const moved = retiming && (start !== s.start || end !== s.end);
+  const problem = !moved ? null : !day || !from || !to ? 'pick a day and both times' : end > Date.now() + MINUTE ? "that's still in the future" : null;
+  const timing = moved && !problem ? retime(s, start, end) : null;
+
   const save = async () => {
-    await editSession(s.id, { note: note || undefined, label: label || undefined, boardId, mood });
+    await editSession(s.id, { note: note || undefined, label: label || undefined, boardId, mood, ...timing });
+    if (timing?.day && timing.day !== s.day) toast({ text: `Moved to ${formatDayLabel(timing.day)}`, tone: 'success' });
     onClose();
   };
   const remove = async () => {
@@ -64,28 +88,62 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
     toast({ text: 'Session removed', action: { label: 'Undo', run: () => void restoreSession(s.id) } });
   };
 
-  const rows: Array<[string, string]> = [
-    ['when', `${formatTimeOfDay(s.start)} – ${formatTimeOfDay(s.end)}`],
-    ['worked', formatDuration(s.actualMs, { seconds: true })],
-  ];
+  // While the times are being changed, every derived number previews the new values.
+  const v = timing ? { ...s, ...timing } : s;
+  const rows: Array<[string, string]> = [['worked', formatDuration(v.actualMs, { seconds: !timing })]];
   if (s.plannedMs) rows.push(['planned', formatDuration(s.plannedMs)]);
-  if (s.timedMs) rows.push(['timed', formatDuration(s.timedMs, { seconds: true })]);
-  if (s.recoveredMs && s.source !== 'manual') rows.push(['recovered', formatDuration(s.recoveredMs)]);
-  if (s.pausedMs >= MINUTE) rows.push(['paused', formatDuration(s.pausedMs)]);
-  if (s.overtimeMs) rows.push(['overtime', `+${formatDuration(s.overtimeMs)}`]);
+  if (s.timedMs) rows.push(['timed', formatDuration(v.timedMs, { seconds: !timing })]);
+  if (v.recoveredMs && s.source !== 'manual') rows.push(['recovered', formatDuration(v.recoveredMs)]);
+  if (v.pausedMs >= MINUTE) rows.push(['paused', formatDuration(v.pausedMs)]);
+  if (v.overtimeMs) rows.push(['overtime', `+${formatDuration(v.overtimeMs)}`]);
   if (s.endReason) rows.push(['ended', s.endReason === 'early' ? 'finished early' : s.endReason === 'complete' ? 'completed' : s.endReason]);
 
   return (
     <Sheet open onClose={onClose} title={`${phaseLabel(s.phase)}${s.bulk ? ' (lump of time)' : ''}`}>
       <div className="mb-3 flex items-center gap-2 text-sm text-ink/70">
-        <SourceDot source={s.source} /> {SOURCE_LABEL[s.source]}
+        <SourceDot source={v.source} /> {SOURCE_LABEL[v.source]}
         {s.importFrom && <span className="text-ink/45">· from {s.importFrom}</span>}
       </div>
-      <dl className="mb-4 grid grid-cols-[auto_1fr] gap-x-4">
-        {rows.map(([k, v]) => (
+      <dl className="mb-4 grid grid-cols-[auto_1fr] items-center gap-x-4">
+        <dt className="font-hand text-[18px] text-ink/55">when</dt>
+        <dd className="flex items-center gap-1 font-display font-semibold">
+          <span className={cx('transition-colors', moved && 'text-ink/40 line-through decoration-ink/30')}>
+            {formatTimeOfDay(s.start)} – {formatTimeOfDay(s.end)}
+          </span>
+          {!s.bulk && (
+            <button
+              type="button"
+              className={cx('btn-ghost -my-1 !p-1.5', retiming ? '!text-ink/70' : '!text-ink/40 hover:!text-ink/80')}
+              onClick={() => (retiming ? resetTimes(s) : setRetiming(true))}
+              aria-label={retiming ? 'Keep the original times' : 'Change the times'}
+              title={retiming ? 'Keep the original times' : 'Change the times'}
+            >
+              {retiming ? <Undo2 size={15} /> : <Pencil size={15} />}
+            </button>
+          )}
+        </dd>
+        {retiming && (
+          <div className="col-span-2 my-2 animate-pop rounded-note border-2 border-dashed border-ink/20 bg-sheet/60 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <input type="date" className="field !w-auto !py-2" value={day} max={today()} onChange={(e) => setDay(e.target.value)} aria-label="Day" />
+              <span className="flex items-center gap-2">
+                <input type="time" className="field !w-auto !py-2" value={from} onChange={(e) => setFrom(e.target.value)} aria-label="Started at" />
+                <span className="font-hand text-[18px] text-ink/50">to</span>
+                <input type="time" className="field !w-auto !py-2" value={to} onChange={(e) => setTo(e.target.value)} aria-label="Ended at" />
+              </span>
+            </div>
+            <p className={cx('mt-2 font-hand text-[18px] leading-tight', problem ? 'text-tomato' : 'text-ink/60')}>
+              {problem ??
+                (moved
+                  ? `${formatDuration(end - start)} on the page${localDay(end - 1, s.tz) !== day ? ', ending the next day' : ''}${s.source === 'timed' ? ' · will read as timed + recovered' : ''}`
+                  : 'nudge the start or end, then save')}
+            </p>
+          </div>
+        )}
+        {rows.map(([k, val]) => (
           <div key={k} className="contents">
             <dt className="font-hand text-[18px] text-ink/55">{k}</dt>
-            <dd className="font-display font-semibold">{v}</dd>
+            <dd className={cx('font-display font-semibold', timing && k === 'worked' && 'text-tomato')}>{val}</dd>
           </div>
         ))}
       </dl>
@@ -110,7 +168,7 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
         <button className="btn-ghost !text-ink/55" onClick={() => void remove()}>
           Remove
         </button>
-        <button className="btn-primary" onClick={() => void save()}>
+        <button className="btn-primary" disabled={!!problem} onClick={() => void save()}>
           Save
         </button>
       </div>

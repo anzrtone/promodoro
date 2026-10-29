@@ -4,7 +4,7 @@
  * the note (so moving one to another subject keeps it here). Drag to reorder, tap to rename.
  */
 import { useEffect, useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { db } from '@/db/schema';
 import { useSettings } from '@/db/settings';
 import { append } from '@/db/repo';
@@ -16,10 +16,11 @@ import { cx } from './ui';
 
 export function TaskNote() {
   const { boardId } = useSettings();
-  const boards = useLiveQuery(() => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
+  const boards = useCachedLiveQuery('boards:live', () => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
   const boardMap = new Map(boards.map((b) => [b.id, b]));
   // Open tasks, plus ones finished in the last day so the ticks feel good.
-  const tasks = useLiveQuery(
+  const tasks = useCachedLiveQuery(
+    `tasknote:${boardId}`,
     async () =>
       (
         await db.tasks

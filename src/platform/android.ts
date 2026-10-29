@@ -183,7 +183,7 @@ export const android: Platform = {
     if (live) {
       try {
         // Same notification id as the plain one below, so switching between them replaces it.
-        await TimerNotification.show({ title: status.title, detail: status.detail, kind: live.kind, at: live.at, frozen: live.frozen });
+        await TimerNotification.show({ title: status.title, detail: status.detail, kind: live.kind, at: live.at, frozen: live.frozen, after: live.after, plus: live.plus });
         return;
       } catch (err) {
         console.warn('[android] live timer notification failed, using the plain one', err);

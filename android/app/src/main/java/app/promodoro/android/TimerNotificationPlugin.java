@@ -1,5 +1,6 @@
 package app.promodoro.android;
 
+import android.app.AlarmManager;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
@@ -88,18 +89,31 @@ public class TimerNotificationPlugin extends Plugin {
 
     /**
      * kind: "down" (at = when it reaches zero), "up" (at = when counting began) or
-     * "paused" (frozen = the time to show).
+     * "paused" (frozen = the time to show). For "down", `after` says what happens at zero
+     * even if the app is asleep: "up" keeps counting overtime, "end" removes the notification.
      */
     @PluginMethod
     public void show(PluginCall call) {
-        Context ctx = getContext();
+        JSObject d = call.getData();
+        // Timestamps outrun an int, and PluginCall.getDouble/getLong ignore other number types.
+        long at = d.optLong("at", System.currentTimeMillis());
+        try {
+            post(getContext(), d.optString("kind", "up"), at, d.optString("title", "Promodoro"), d.optString("detail", ""), d.optString("frozen", ""), d.optString("after", "end"), d.optBoolean("plus", false));
+            call.resolve();
+        } catch (RuntimeException e) {
+            call.reject("Could not show the timer notification", e);
+        }
+    }
+
+    @PluginMethod
+    public void hide(PluginCall call) {
+        cancelFlip(getContext());
+        getContext().getSystemService(NotificationManager.class).cancel(NOTIF_ID);
+        call.resolve();
+    }
+
+    static void post(Context ctx, String kind, long at, String title, String detail, String frozen, String after, boolean plus) {
         ensureChannel(ctx);
-        String kind = call.getString("kind", "up");
-        String title = call.getString("title", "Promodoro");
-        String detail = call.getString("detail", "");
-        String frozen = call.getString("frozen", "");
-        Double atArg = call.getDouble("at");
-        long at = atArg == null ? System.currentTimeMillis() : atArg.longValue();
         boolean paused = "paused".equals(kind);
 
         RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.notification_timer);
@@ -117,7 +131,8 @@ public class TimerNotificationPlugin extends Plugin {
             rv.setViewVisibility(R.id.timer_frozen, View.GONE);
             rv.setViewVisibility(R.id.timer_chrono, View.VISIBLE);
             rv.setChronometerCountDown(R.id.timer_chrono, "down".equals(kind));
-            rv.setChronometer(R.id.timer_chrono, base, null, true);
+            // The format's %s is the time; "+%s" marks overtime.
+            rv.setChronometer(R.id.timer_chrono, base, plus ? "+%s" : null, true);
             rv.setImageViewResource(R.id.btn_primary, R.drawable.ic_timer_pause);
             rv.setInt(R.id.btn_primary, "setBackgroundResource", R.drawable.btn_circle_soft);
             rv.setViewVisibility(R.id.btn_stop, View.GONE);
@@ -143,18 +158,37 @@ public class TimerNotificationPlugin extends Plugin {
                 .setAutoCancel(false)
                 .setOngoing(!paused)
                 .setContentIntent(openPi);
+        ctx.getSystemService(NotificationManager.class).notify(NOTIF_ID, b.build());
 
+        cancelFlip(ctx);
+        if ("down".equals(kind)) scheduleFlip(ctx, at, title, detail, after);
+    }
+
+    /** The moment a countdown reaches zero, with or without the app running. */
+    private static PendingIntent flipIntent(Context ctx, long at, String title, String detail, String after, int flags) {
+        Intent i = new Intent(ctx, TimerFlipReceiver.class)
+                .putExtra("at", at)
+                .putExtra("title", title)
+                .putExtra("detail", detail)
+                .putExtra("after", after);
+        return PendingIntent.getBroadcast(ctx, 3, i, flags | PendingIntent.FLAG_IMMUTABLE);
+    }
+
+    private static void scheduleFlip(Context ctx, long at, String title, String detail, String after) {
+        AlarmManager am = ctx.getSystemService(AlarmManager.class);
+        PendingIntent pi = flipIntent(ctx, at, title, detail, after, PendingIntent.FLAG_UPDATE_CURRENT);
         try {
-            ctx.getSystemService(NotificationManager.class).notify(NOTIF_ID, b.build());
-            call.resolve();
-        } catch (RuntimeException e) {
-            call.reject("Could not show the timer notification", e);
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+        } catch (SecurityException e) {
+            am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
         }
     }
 
-    @PluginMethod
-    public void hide(PluginCall call) {
-        getContext().getSystemService(NotificationManager.class).cancel(NOTIF_ID);
-        call.resolve();
+    private static void cancelFlip(Context ctx) {
+        PendingIntent pi = flipIntent(ctx, 0, "", "", "", PendingIntent.FLAG_NO_CREATE);
+        if (pi != null) {
+            ctx.getSystemService(AlarmManager.class).cancel(pi);
+            pi.cancel();
+        }
     }
 }

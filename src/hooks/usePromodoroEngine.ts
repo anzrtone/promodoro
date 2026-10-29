@@ -15,16 +15,16 @@
  *  • Auto-advance: strict countdowns can roll into the next phase at the exact
  *    completion instant, even if that instant passed while the app was asleep.
  */
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { liveQuery } from 'dexie';
 import { alarms as alarmQueue } from '@/audio/engine';
 import { isSoundId } from '@/audio/catalog';
 import { db } from '@/db/schema';
-import { append, getActiveTimers, logAppEvent } from '@/db/repo';
+import { append, getActiveTimers, logAppEvent, pruneJoggers } from '@/db/repo';
 import { DEFAULT_SETTINGS, getSettings, updateSettings, type AppSettings } from '@/db/settings';
 import { breakAfter, phaseLabel, roundAfterBreak, suggestBreakMs, isBreak } from '@/engine/cycle';
 import { dueEvents, nextAlarmAt, snapshot, type PendingEvent } from '@/engine/timer';
-import { formatClock, formatDuration, formatTimeOfDay, MINUTE, uid } from '@/engine/time';
+import { formatClock, formatDuration, formatTimeOfDay, MINUTE, today, uid } from '@/engine/time';
 import type { Board, ModeChoice, Mood, Phase, Preset, Session, TimerState } from '@/engine/types';
 import { evaluateSession } from '@/features/stickers';
 import { platform } from '@/platform';
@@ -94,6 +94,7 @@ class Engine {
   private settling: Promise<void> | null = null;
   private lastWall = Date.now();
   private lastPerf = performance.now();
+  private day = today();
   private started = false;
   private backHandler: (() => boolean) | null = null;
 
@@ -154,6 +155,7 @@ class Engine {
       onBack: () => this.backHandler?.() ?? false,
     });
     void platform().setCloseToTray?.(this.settings.closeToTray);
+    void pruneJoggers();
     await logAppEvent('app.open');
     await this.settle();
     void refreshDailyReport();
@@ -172,6 +174,12 @@ class Engine {
     this.lastWall = wall;
     this.lastPerf = perf;
     if (drift < -5000) void this.onClockJump(drift);
+    // Past midnight with the app open: yesterday's memory joggers go.
+    const day = today();
+    if (day !== this.day) {
+      this.day = day;
+      void pruneJoggers();
+    }
     void this.settle();
     void this.syncStatus();
   }
@@ -337,10 +345,10 @@ class Engine {
       const live: StatusSpec['live'] = !this.settings.liveTimerNotification
         ? undefined
         : p.status === 'paused'
-          ? { kind: 'paused', at: now, frozen: clock }
+          ? { kind: 'paused', at: now, frozen: clock.replace(/^\+/, '') }
           : snap.targetMs > 0 && !snap.inOvertime
-            ? { kind: 'down', at: now + snap.remainingMs, frozen: clock }
-            : { kind: 'up', at: now - (snap.inOvertime ? snap.overtimeMs : snap.totalMs), frozen: clock };
+            ? { kind: 'down', at: now + snap.remainingMs, frozen: clock, after: p.overtime ? 'up' : 'end' }
+            : { kind: 'up', at: now - (snap.inOvertime ? snap.overtimeMs : snap.totalMs), frozen: clock, plus: snap.inOvertime };
       status = {
         live,
         text: `${name} · ${clock}${p.status === 'paused' ? ' (paused)' : ''}`,
@@ -514,29 +522,69 @@ class Engine {
 
 export const engine = new Engine();
 
-/** Re-render every `ms` (aligned to wall-clock seconds) for display only. */
-export function useNow(ms = 1000, active = true): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
+/**
+ * One shared ticker per interval: every `useNow(ms)` in the tree is woken by the same
+ * timeout, so a second's worth of clock updates is one batched render, not one per component.
+ */
+interface Clock {
+  now: number;
+  subs: Set<() => void>;
+  stop?: () => void;
+}
+const clocks = new Map<number, Clock>();
+
+function clockAt(ms: number): Clock {
+  let c = clocks.get(ms);
+  if (!c) clocks.set(ms, (c = { now: Date.now(), subs: new Set() }));
+  // Idle clocks don't tick, so refresh on read rather than hand out a stale time.
+  else if (!c.subs.size && Date.now() - c.now >= ms) c.now = Date.now();
+  return c;
+}
+
+function subscribeClock(ms: number, fn: () => void) {
+  const c = clockAt(ms);
+  if (!c.subs.size) {
+    const fire = () => {
+      c.now = Date.now();
+      c.subs.forEach((f) => f());
+    };
     let timer: ReturnType<typeof setTimeout>;
     const loop = () => {
-      setNow(Date.now());
+      fire();
       timer = setTimeout(loop, ms - (Date.now() % ms) + 5);
     };
     timer = setTimeout(loop, ms - (Date.now() % ms) + 5);
-    const vis = () => !document.hidden && setNow(Date.now());
+    const vis = () => !document.hidden && fire();
     document.addEventListener('visibilitychange', vis);
-    return () => {
+    c.stop = () => {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', vis);
     };
-  }, [ms, active]);
-  return now;
+  }
+  c.subs.add(fn);
+  return () => {
+    c.subs.delete(fn);
+    if (c.subs.size) return;
+    c.stop?.();
+    c.stop = undefined;
+  };
+}
+
+const noop = () => () => {};
+
+/** Re-render every `ms` (aligned to wall-clock seconds) for display only. */
+export function useNow(ms = 1000, active = true): number {
+  const subscribe = useCallback((fn: () => void) => subscribeClock(ms, fn), [ms]);
+  return useSyncExternalStore(active ? subscribe : noop, () => clockAt(ms).now);
+}
+
+/** Engine state without the display clock: for code that reacts to timer changes but shows no time. */
+export function useEngineState(): EngineState {
+  return useSyncExternalStore(engine.subscribe, engine.getState);
 }
 
 export function usePromodoroEngine() {
-  const state = useSyncExternalStore(engine.subscribe, engine.getState);
+  const state = useEngineState();
   const anyRunning = state.timers.some((t) => t.status === 'running');
   // 1 s while a timer is shown; a slow 15 s refresh otherwise (for "ended X min ago").
   const now = useNow(anyRunning || state.timers.length > 0 ? 1000 : 15_000);

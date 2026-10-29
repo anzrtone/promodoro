@@ -6,7 +6,7 @@
  *   - a row only on one side is added (unless the other side deleted it after its last edit)
  *   - a row on both sides keeps the newer edit (ties keep what's here)
  *   - a delete wins over an older copy, and loses to a newer edit
- *   - the event log is the union of both logs
+ *   - the event log is the union of both logs (minus past days' memory-jogger marks, which are pruned)
  *   - synced preferences follow whichever device changed them last
  * Merging the same data twice changes nothing, so a retried or doubled sync is harmless.
  */
@@ -14,8 +14,8 @@ import type { AnyEvent } from '@/engine/types';
 import type { Backup } from '@/db/backup';
 import { db, flushTombstones, skipSyncStamping, type SyncRowTable, type Tombstone } from '@/db/schema';
 import { SYNCED_PREFS, type AppSettings } from '@/db/settings';
-import { recomputeAllDays } from '@/db/repo';
-import { DAY } from '@/engine/time';
+import { isStaleJogger, recomputeAllDays } from '@/db/repo';
+import { DAY, dayStart, today } from '@/engine/time';
 
 export interface MergeStats {
   /** Sessions that were new to this device. */
@@ -44,7 +44,8 @@ export async function mergeBackup(b: Backup, opts: { honorDeletes: boolean }): P
     // Event log: union by (ts, type, timer).
     const seen = new Set<string>();
     await db.events.each((e) => void seen.add(`${e.ts}|${e.type}|${e.timerId ?? ''}`));
-    const newEvents = b.events.filter((e) => !seen.has(`${e.ts}|${e.type}|${e.timerId ?? ''}`)).map(({ id: _id, ...e }) => e as AnyEvent);
+    const joggersBefore = dayStart(today());
+    const newEvents = b.events.filter((e) => !isStaleJogger(e, joggersBefore) && !seen.has(`${e.ts}|${e.type}|${e.timerId ?? ''}`)).map(({ id: _id, ...e }) => e as AnyEvent);
     if (newEvents.length) await db.events.bulkAdd(newEvents);
     stats.events = newEvents.length;
 

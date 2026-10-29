@@ -84,7 +84,7 @@ export async function renderDayPage(canvas: HTMLCanvasElement, day: string): Pro
     c.fillText(`+${formatDuration(overtime)} flow ✦`, 150 + headW + 28, 205);
   }
 
-  const pomo = await loadImg(STICKER_ART[total ? 'content' : 'shy']);
+  const pomo = await loadImg(STICKER_ART[total ? 'content' : 'sleeping']);
   c.save();
   c.translate(W - 190, 140);
   c.rotate(0.08);

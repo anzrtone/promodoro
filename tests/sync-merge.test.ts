@@ -180,3 +180,17 @@ describe('wipeEverything (danger zone)', () => {
     expect(await db.presets.count()).toBeGreaterThan(0);
   });
 });
+
+describe('memory joggers in sync', () => {
+  it("does not bring back another device's past-day joggers", async () => {
+    const backup = await asOtherDevice(async () => {
+      await db.events.bulkAdd([
+        { type: 'app.open', ts: Date.now() - 3 * 24 * 60 * MINUTE, tz: 0, data: {} },
+        { type: 'app.open', ts: Date.now(), tz: 0, data: {} },
+      ] as never);
+      return buildBackup();
+    });
+    await mergeBackup(backup, { honorDeletes: true });
+    expect((await db.events.toArray()).filter((x) => x.type === 'app.open')).toHaveLength(1);
+  });
+});

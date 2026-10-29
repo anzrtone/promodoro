@@ -5,7 +5,7 @@
  *   POST   /survey      opt-in welcome-survey answers, one row per random install id (D1)
  *   POST   /ping        the user count: random id + platform + version, once a day (D1)
  *   GET    /sync/:id    the encrypted device-sync snapshot for a pairing id (R2) — ciphertext only
- *   PUT    /sync/:id    needs the write token (x-sync-token) once the id has been claimed
+ *   PUT    /sync/:id    always needs the write token (x-sync-token)
  *   DELETE /sync/:id
  *
  * Setup is in worker/README.md. No IPs, user agents or other request metadata are stored.
@@ -124,18 +124,18 @@ const sha256Hex = async (s) =>
   Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))), (b) => b.toString(16).padStart(2, '0')).join('');
 
 /**
- * Overwriting or deleting needs the write token whenever the snapshot has been claimed with one. The first
- * write that carries a token claims the id; snapshots from older app versions (no token yet) stay writable
- * until a newer app claims them. Only the token's hash is stored, in the object's metadata.
- * Returns the hash to store (or null) when allowed, or false when refused.
+ * Every write and delete needs the write token. The first write claims the id; after that only the same
+ * token is accepted. Only the token's hash is stored, in the object's metadata. A snapshot with no stored
+ * hash (written before tokens existed) can be claimed by the first token that arrives.
+ * Returns the hash to store when allowed, or null when refused.
  */
 async function authorizeWrite(req, env, key) {
   const token = req.headers.get('x-sync-token');
-  const given = token && /^[0-9a-f]{64}$/i.test(token) ? await sha256Hex(token.toLowerCase()) : null;
+  if (!token || !/^[0-9a-f]{64}$/i.test(token)) return null;
+  const given = await sha256Hex(token.toLowerCase());
   const head = await env.SYNC.head(key);
   const owner = head?.customMetadata?.tokenHash ?? null;
-  if (owner && owner !== given) return false;
-  return given;
+  return owner && owner !== given ? null : given;
 }
 
 async function sync(req, env, id) {
@@ -156,12 +156,12 @@ async function sync(req, env, id) {
     if (body.byteLength > MAX_SYNC_BYTES) return reply(413);
     if (body.byteLength < 14) return reply(400);
     const hash = await authorizeWrite(req, env, key);
-    if (hash === false) return reply(403);
-    await env.SYNC.put(key, body, hash ? { customMetadata: { tokenHash: hash } } : undefined);
+    if (!hash) return reply(403);
+    await env.SYNC.put(key, body, { customMetadata: { tokenHash: hash } });
     return reply(204);
   }
   if (req.method === 'DELETE') {
-    if ((await authorizeWrite(req, env, key)) === false) return reply(403);
+    if (!(await authorizeWrite(req, env, key))) return reply(403);
     await env.SYNC.delete(key);
     return reply(204);
   }

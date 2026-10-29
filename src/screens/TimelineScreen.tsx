@@ -6,7 +6,7 @@
  *  Month — a heat map of focus per day.
  */
 import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { ChevronLeft, ChevronRight, Minus, Plus, Share2 } from 'lucide-react';
 import { useViewDb } from '@/features/demo';
 import { useSettings } from '@/db/settings';
@@ -122,14 +122,15 @@ function useDayData(day: string) {
   const db = useViewDb();
   const from = dayStart(day);
   const to = from + DAY;
-  const sessions = useLiveQuery(
+  const sessions = useCachedLiveQuery(
+    `tl:${db.name}:day:${day}`,
     () => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk).toArray(),
     [db, from, to],
     [],
   );
-  const bulk = useLiveQuery(() => db.sessions.where('day').equals(day).filter((s) => !!s.bulk && !s.deleted).toArray(), [db, day], []);
-  const events = useLiveQuery(() => db.events.where('ts').between(from, to).toArray(), [db, from, to], []);
-  const boards = useLiveQuery(() => db.boards.toArray(), [db], []);
+  const bulk = useCachedLiveQuery(`tl:${db.name}:bulk:${day}`, () => db.sessions.where('day').equals(day).filter((s) => !!s.bulk && !s.deleted).toArray(), [db, day], []);
+  const events = useCachedLiveQuery(`tl:${db.name}:events:${day}`, () => db.events.where('ts').between(from, to).toArray(), [db, from, to], []);
+  const boards = useCachedLiveQuery(`tl:${db.name}:boards`, () => db.boards.toArray(), [db], []);
   return { from, to, sessions, bulk, events, boards };
 }
 
@@ -426,7 +427,7 @@ function WeekView({ start, onPick }: { start: string; onPick: (d: string) => voi
   const from = dayStart(start);
   const to = dayStart(addDays(start, 7));
   const db = useViewDb();
-  const sessions = useLiveQuery(() => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk && s.phase !== 'side').toArray(), [db, from, to], []);
+  const sessions = useCachedLiveQuery(`tl:${db.name}:week:${start}`, () => db.sessions.where('end').above(from).filter((s) => s.start < to && !s.deleted && !s.bulk && s.phase !== 'side').toArray(), [db, from, to], []);
   const settings = useSettings();
   return (
     <div className="card overflow-x-auto p-3">
@@ -470,7 +471,7 @@ function MonthView({ day, onPick }: { day: string; onPick: (d: string) => void }
   const gridStart = weekStart(first);
   const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
   const db = useViewDb();
-  const summaries = useLiveQuery(() => db.daily.where('day').between(cells[0], cells[41], true, true).toArray(), [db, cells[0]], []);
+  const summaries = useCachedLiveQuery(`tl:${db.name}:month:${cells[0]}`, () => db.daily.where('day').between(cells[0], cells[41], true, true).toArray(), [db, cells[0]], []);
   const byDay = new Map(summaries.map((s) => [s.day, focusFor(s, settings.chartSources)]));
   const max = Math.max(HOUR, ...byDay.values());
   const month = first.slice(0, 7);

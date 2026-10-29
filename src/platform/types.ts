@@ -33,7 +33,7 @@ export interface StatusSpec {
    * Android's ticking notification. Absent when the user turned it off. `down`: `at` is when
    * it reaches zero; `up`: `at` is when counting began; `paused`: show `frozen` as is.
    */
-  live?: { kind: 'down' | 'up' | 'paused'; at: number; frozen: string };
+  live?: { kind: 'down' | 'up' | 'paused'; at: number; frozen: string; after?: 'up' | 'end'; plus?: boolean };
 }
 
 /** A notification to deliver at `at`, replacing any earlier one of its kind. */

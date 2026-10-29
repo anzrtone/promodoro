@@ -17,7 +17,6 @@ import grumpy from '@/assets/stickers/grumpy.webp';
 import neutral from '@/assets/stickers/neutral.webp';
 import peek from '@/assets/stickers/peek.webp';
 import puzzled from '@/assets/stickers/puzzled.webp';
-import shy from '@/assets/stickers/shy.webp';
 import smitten from '@/assets/stickers/smitten.webp';
 import teary from '@/assets/stickers/teary.webp';
 import done from '@/assets/stickers/done.webp';
@@ -29,7 +28,7 @@ import backup from '@/assets/stickers/backup.webp';
 import sleeping from '@/assets/stickers/sleeping.webp';
 
 export const STICKER_ART = {
-  content, flustered, grumpy, neutral, peek, puzzled, shy, smitten, teary,
+  content, flustered, grumpy, neutral, peek, puzzled, smitten, teary,
   done, excited, hundred, moving, nerd, backup, sleeping,
 };
 
@@ -54,7 +53,7 @@ export const STICKERS: StickerDef[] = [
   { id: 'hundred-hours', title: '100 hours', blurb: 'One hundred hours of focus, all yours.', hint: 'Reach 100 hours total', art: 'hundred', tilt: -4 },
   { id: 'moving-in', title: 'Moving in', blurb: 'You brought your history along. Make yourself at home.', hint: 'Import sessions from another app', art: 'moving', tilt: 3 },
   { id: 'backup-buddy', title: 'Backup buddy', blurb: 'Automatic backups on. Your notebook is safe.', hint: 'Turn on automatic backups', art: 'backup', tilt: -2 },
-  { id: 'nice-to-meet-you', title: 'Nice to meet you', blurb: 'You and Pomo said hello. The first page of a cozy notebook.', hint: 'Finish the welcome notebook', art: 'shy', tilt: 4 },
+  { id: 'nice-to-meet-you', title: 'Nice to meet you', blurb: 'You and Pomo said hello. The first page of a cozy notebook.', hint: 'Finish the welcome notebook', art: 'smitten', tilt: 4 },
   { id: 'pomo-poke', title: 'Hey!', blurb: 'Pomo has feelings too, you know.', hint: 'A secret…', art: 'grumpy', tilt: 6 },
 ];
 

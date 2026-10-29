@@ -33,6 +33,14 @@ export function addDays(day: string, n: number): string {
   return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}`;
 }
 
+/** The same day of the month `n` months away, clamped to that month's length (Mar 31 − 1 month = Feb 28). */
+export function addMonths(day: string, n: number): string {
+  const [y, m, d] = day.split('-').map(Number);
+  const first = new Date(Date.UTC(y, m - 1 + n, 1));
+  const last = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  return `${first.getUTCFullYear()}-${pad(first.getUTCMonth() + 1)}-${pad(Math.min(d, last))}`;
+}
+
 export function today(): string {
   return localDay(Date.now());
 }

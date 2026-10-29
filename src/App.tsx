@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useDeferredValue, useEffect, useRef, useState } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { BarChart3, CalendarClock, FolderOpen, Maximize2, Settings, Sticker, Timer } from 'lucide-react';
 import { setAmbient } from '@/audio/engine';
@@ -10,7 +10,7 @@ import { isSupporter } from '@/features/license';
 import { navigate, useNav, type Tab } from '@/features/nav';
 import { dismissToast, useToasts } from '@/features/toasts';
 import { STICKER_ART, stickerDef } from '@/features/stickers';
-import { engine, usePromodoroEngine } from '@/hooks/usePromodoroEngine';
+import { engine, useEngineState } from '@/hooks/usePromodoroEngine';
 import { isFocusMode, setFocusMode } from '@/features/focusMode';
 import { platform } from '@/platform';
 import { PromodoroCard } from '@/components/PromodoroCard';
@@ -38,6 +38,8 @@ const TABS: Array<{ id: Tab; label: string; icon: typeof Timer }> = [
 
 export function App() {
   const { tab } = useNav();
+  // The tab bar reacts at once; the screen itself renders as interruptible background work.
+  const shown = useDeferredValue(tab);
   const settings = useSettings();
   const welcome = useWelcome();
   const [mini, setMini] = useState(false);
@@ -88,11 +90,9 @@ export function App() {
   const mainRef = useRef<HTMLElement>(null);
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0 });
-  }, [tab]);
+  }, [shown]);
 
   if (mini) return <MiniMode onExpand={() => window.dispatchEvent(new CustomEvent('promodoro:mini', { detail: false }))} />;
-
-  const Screen = { focus: FocusScreen, subjects: SubjectsScreen, timeline: TimelineScreen, stats: StatsScreen, stickers: StickerScreen, settings: SettingsScreen }[tab];
 
   return (
     <div className="flex h-full">
@@ -122,12 +122,12 @@ export function App() {
 
       <main ref={mainRef} className="bg-notebook relative flex-1 overflow-y-auto overflow-x-hidden safe-pt [--pm-margin-x:28px] md:[--pm-margin-x:44px]" style={{ backgroundPositionY: '4px' }}>
         <div className="min-h-full px-4 pb-28 pt-6 sm:pl-14 sm:pr-8 md:pb-10">
-          <Screen />
+          <CurrentScreen tab={shown} />
         </div>
       </main>
 
       {/* Android / narrow: bottom tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-paper/95 backdrop-blur safe-pb md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-rule bg-paper safe-pb md:hidden">
         {TABS.map((t) => (
           <button key={t.id} data-tour={t.id} onClick={() => navigate(t.id)} className={cx('relative flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-bold', tab === t.id ? 'text-tomato' : 'text-ink/55')}>
             <span className={cx('rounded-full px-4 py-1', tab === t.id && 'bg-halo text-ink')}>
@@ -148,6 +148,14 @@ export function App() {
     </div>
   );
 }
+
+const SCREENS = { focus: FocusScreen, subjects: SubjectsScreen, timeline: TimelineScreen, stats: StatsScreen, stickers: StickerScreen, settings: SettingsScreen };
+
+/** Memoised so shell-level updates (badges, mini mode, toasts) never re-render the screen. */
+const CurrentScreen = memo(function CurrentScreen({ tab }: { tab: Tab }) {
+  const Screen = SCREENS[tab];
+  return <Screen />;
+});
 
 /** First run (or first launch since onboarding existed): which welcome notebook to show, if any. */
 function useWelcome() {
@@ -215,7 +223,8 @@ function useTheme(theme: string, license: string | null) {
 
 /** Open focus mode when a new focus session starts (not on launch with one already running, not for auto-started phases). */
 function useFocusModeAutoOpen(on: boolean) {
-  const { primary, ready } = usePromodoroEngine();
+  const { timers, ready } = useEngineState();
+  const primary = timers.find((t) => t.phase !== 'side');
   const seen = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (!ready) return;
@@ -227,7 +236,7 @@ function useFocusModeAutoOpen(on: boolean) {
 
 /** Optional: ambient bed starts with focus and fades out on breaks / when stopped. */
 function useAmbientAutoplay() {
-  const { primary } = usePromodoroEngine();
+  const primary = useEngineState().timers.find((t) => t.phase !== 'side');
   const s = useSettings();
   const key = primary ? `${primary.phase}:${primary.status}` : 'none';
   useEffect(() => {

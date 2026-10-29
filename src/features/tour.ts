@@ -49,9 +49,9 @@ export const TOUR: TourStep[] = [
   { screen: 'timeline', target: 'timeline-actions', text: 'Worked away from the app? Add a past session by hand. “Share this page” turns the day into a picture, and Import brings in history from Forest, Flow or a spreadsheet.' },
 
   // Stats
-  { screen: 'stats', target: 'stats-filters', text: 'Your Stats! Pick a range up here, and choose which kinds of time count: timed, adjusted, added by hand, or imported.' },
-  { screen: 'stats', target: 'stats-tiles', text: 'The totals: focus time, your average per active day, sessions, days focused, tasks done, and notebook pages filled all time. Comparisons are just info, never a grade.' },
-  { screen: 'stats', target: 'stats-bars', text: 'Focus over time. The texture shows where minutes came from, and ★ marks your best day. The little table icon shows exact numbers.' },
+  { screen: 'stats', target: 'stats-filters', text: 'Your Stats! Pick a day, week, month or year up here and step back through them with the arrows. Below, choose which kinds of time count: timed, adjusted, added by hand, or imported.' },
+  { screen: 'stats', target: 'stats-tiles', text: 'The totals: focus time, sessions, tasks done, and notebook pages filled all time, plus your daily goal for a single day or your average per active day for longer stretches. Comparisons are just info, never a grade.' },
+  { screen: 'stats', target: 'stats-bars', text: 'Focus over time: by hour for one day, by day or month for longer stretches. The texture shows where minutes came from, and ★ marks the best one. The little table icon shows exact numbers.' },
   { screen: 'stats', target: 'stats-periods', text: 'Focus periods: each day as a strip, coloured by subject, so you can see when in the day you actually worked.' },
   { screen: 'stats', target: 'stats-donut', text: 'Where the time went: your focus split by subject.' },
   { screen: 'stats', target: 'stats-goal', text: 'Daily goal: pick a gentle target. Rings fill up as you go. An empty day is just an empty ring, never a red mark.' },

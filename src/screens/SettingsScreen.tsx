@@ -340,7 +340,7 @@ function SoundSettings() {
           {s.overtimeAlert === 'sound' ? 'Plays your alarm sound at the goal.' : s.overtimeAlert === 'vibrate' ? (platform().kind === 'desktop' ? 'A notification, no sound.' : 'A buzz and a notification, no sound.') : 'No sound, no buzz, no pop-up.'}
         </p>
       </div>
-      {platform().kind === 'android' && (
+      {platform().kind !== 'desktop' && (
         <>
           <Toggle checked={s.liveTimerNotification} onChange={(v) => void updateSettings({ liveTimerNotification: v })} label="Timer in the notification bar" hint="A ticking timer with pause, resume and stop buttons while one is running." />
           <Toggle checked={s.dailyReport} onChange={(v) => void updateSettings({ dailyReport: v })} label="Daily report" hint="One note each evening with how long you focused. Skipped on days you didn't." />

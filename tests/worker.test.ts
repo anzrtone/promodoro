@@ -77,21 +77,22 @@ describe('worker: /survey', () => {
 describe('worker: /sync', () => {
   const id = 'a'.repeat(32);
   const blob = new Uint8Array(40).fill(7);
+  const auth = { 'x-sync-token': 'c3'.repeat(32) };
 
   it('stores, returns and deletes an opaque blob', async () => {
     expect((await call(t.env, `/sync/${id}`)).status).toBe(404);
-    expect((await call(t.env, `/sync/${id}`, { method: 'PUT', body: blob })).status).toBe(204);
+    expect((await call(t.env, `/sync/${id}`, { method: 'PUT', body: blob, headers: auth })).status).toBe(204);
     const got = await call(t.env, `/sync/${id}`);
     expect(got.status).toBe(200);
     expect(new Uint8Array(await got.arrayBuffer())).toEqual(blob);
     expect(got.headers.get('access-control-allow-origin')).toBe('*');
-    await call(t.env, `/sync/${id}`, { method: 'DELETE' });
+    await call(t.env, `/sync/${id}`, { method: 'DELETE', headers: auth });
     expect((await call(t.env, `/sync/${id}`)).status).toBe(404);
   });
 
   it('rejects bad ids, tiny bodies and answers CORS preflight', async () => {
-    expect((await call(t.env, '/sync/short', { method: 'PUT', body: blob })).status).toBe(404);
-    expect((await call(t.env, `/sync/${id}`, { method: 'PUT', body: new Uint8Array(3) })).status).toBe(400);
+    expect((await call(t.env, '/sync/short', { method: 'PUT', body: blob, headers: auth })).status).toBe(404);
+    expect((await call(t.env, `/sync/${id}`, { method: 'PUT', body: new Uint8Array(3), headers: auth })).status).toBe(400);
     const pre = await call(t.env, `/sync/${id}`, { method: 'OPTIONS' });
     expect(pre.status).toBe(204);
     expect(pre.headers.get('access-control-allow-methods')).toContain('PUT');
@@ -122,11 +123,17 @@ describe('worker: /sync', () => {
       expect(JSON.stringify(meta)).not.toContain(tokenA);
     });
 
-    it('keeps snapshots from older apps (no token) writable until a new app claims them', async () => {
-      expect((await put()).status).toBe(204);
-      expect((await put()).status).toBe(204);
-      expect((await put(tokenA)).status).toBe(204);
+    it('refuses every tokenless write, so apps without tokens cannot create or fill mailboxes', async () => {
       expect((await put()).status).toBe(403);
+      expect(t.objects.size).toBe(0);
+      expect((await call(t.env, `/sync/${id}`, { method: 'DELETE' })).status).toBe(403);
+    });
+
+    it('lets the first token claim a snapshot that was stored before tokens existed', async () => {
+      t.objects.set(`s/${id}`, { body: blob.buffer as ArrayBuffer, uploaded: new Date() });
+      expect((await put()).status).toBe(403);
+      expect((await put(tokenA)).status).toBe(204);
+      expect((await put(tokenB)).status).toBe(403);
     });
 
     it('allows the token header through CORS preflight', async () => {
@@ -139,7 +146,7 @@ describe('worker: /sync', () => {
     it('blocks an address that writes too fast, but never reads', async () => {
       let n = 0;
       const env = { ...t.env, LIMITER: { limit: async () => ({ success: ++n <= 2 }) } };
-      const put = () => call(env, `/sync/${id}`, { method: 'PUT', body: blob });
+      const put = () => call(env, `/sync/${id}`, { method: 'PUT', body: blob, headers: { 'x-sync-token': 'a1'.repeat(32) } });
       expect((await put()).status).toBe(204);
       expect((await put()).status).toBe(204);
       const blocked = await put();
@@ -151,7 +158,7 @@ describe('worker: /sync', () => {
   });
 
   it('treats a snapshot older than 60 days as gone', async () => {
-    await call(t.env, `/sync/${id}`, { method: 'PUT', body: blob });
+    await call(t.env, `/sync/${id}`, { method: 'PUT', body: blob, headers: auth });
     t.objects.get(`s/${id}`)!.uploaded = new Date(Date.now() - 61 * 24 * 3600 * 1000);
     expect((await call(t.env, `/sync/${id}`)).status).toBe(404);
     expect(t.objects.size).toBe(0);

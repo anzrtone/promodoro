@@ -3,12 +3,13 @@
  */
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { Check, ChevronDown, Coffee, FastForward, Flame, History, Maximize2, MoreHorizontal, Pause, Play, Plus, Trash2, Volume2 } from 'lucide-react';
 import { db } from '@/db/schema';
 import { updateSettings, useSettings } from '@/db/settings';
 import { phaseLabel, isBreak } from '@/engine/cycle';
 import { formatClock, formatDuration, formatTimeOfDay, MINUTE } from '@/engine/time';
-import { lastSessionEnd } from '@/engine/timeline';
+import { lastSessionSince } from '@/db/repo';
 import { nextAlarmAt } from '@/engine/timer';
 import { groupSubjects } from '@/engine/folders';
 import type { ModeChoice, Preset, TimerSnapshot, TimerState } from '@/engine/types';
@@ -368,12 +369,12 @@ const presetName = (p: Preset) => p.name.replace(/\s*\d+\s*\/\s*\d+$/, '');
  */
 function StartPanel({ compact }: { compact: boolean }) {
   const settings = useSettings();
-  const allPresets = useLiveQuery(() => db.presets.orderBy('order').toArray(), [], []);
+  const allPresets = useCachedLiveQuery('presets:all', () => db.presets.orderBy('order').toArray(), [], []);
   // The one-off slot only shows while it's the one in use.
   const presets = allPresets.filter((p) => !p.once || p.id === settings.presetId);
-  const boards = useLiveQuery(() => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
-  const folders = useLiveQuery(() => db.folders.orderBy('order').filter((f) => !f.archived).toArray(), [], []);
-  const tasks = useLiveQuery(() => db.tasks.filter((t) => !t.done).toArray(), [], []);
+  const boards = useCachedLiveQuery('boards:live', () => db.boards.orderBy('order').filter((b) => !b.archived).toArray(), [], []);
+  const folders = useCachedLiveQuery('folders:live', () => db.folders.orderBy('order').filter((f) => !f.archived).toArray(), [], []);
+  const tasks = useCachedLiveQuery('tasks:open', () => db.tasks.filter((t) => !t.done).toArray(), [], []);
   const preset = presets.find((p) => p.id === settings.presetId) ?? presets[0];
   const [minutes, setMinutes] = useState<number | null>(null);
   const [taskId, setTaskId] = useState<string | undefined>();
@@ -632,7 +633,7 @@ function ForgotLink({ onPick }: { onPick: (min: number) => void }) {
   const [custom, setCustom] = useState<string | null>(null);
   // While the custom box is open, the first click on another pill only closes it.
   const pick = (m: number) => (custom !== null ? setCustom(null) : onPick(m));
-  const last = useLiveQuery(async () => lastSessionEnd(await db.sessions.where('end').above(Date.now() - 6 * 3600_000).toArray()), []);
+  const last = useLiveQuery(() => lastSessionSince(Date.now() - 6 * 3600_000), []);
   const sinceMin = useMemo(() => (last ? Math.round((Date.now() - last.end) / MINUTE) : 0), [last]);
   return (
     <div className="flex flex-col items-center gap-1.5">

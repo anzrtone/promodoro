@@ -33,6 +33,11 @@
             android:taskAffinity=""
             android:theme="@android:style/Theme.NoDisplay" />
 
+        <!-- Fires when a countdown reaches zero: keeps counting as overtime, or clears the notification. -->
+        <receiver
+            android:name=".TimerFlipReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

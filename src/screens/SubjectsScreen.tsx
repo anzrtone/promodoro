@@ -2,7 +2,7 @@
  * Subjects: folders (two levels deep) of subjects, each with its own tasks and notes.
  * Desktop: tree on the left, details on the right. Phones: tap a row to open its details in a sheet.
  */
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   closestCenter,
   defaultDropAnimationSideEffects,
@@ -24,6 +24,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-
 import { CSS } from '@dnd-kit/utilities';
 import { RemoveTaskButton, SortableRow, SortableTasks, TaskTitle } from '@/components/TaskList';
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useCachedLiveQuery } from '@/hooks/useCachedLiveQuery';
 import { Archive, ChevronDown, ChevronRight, Folder as FolderIcon, FolderPlus, GripVertical, Plus, StickyNote, Trash2, X } from 'lucide-react';
 import { db } from '@/db/schema';
 import { append } from '@/db/repo';
@@ -57,16 +58,17 @@ import { cx, Empty, Sheet } from '@/components/ui';
 type Sel = Owner | null;
 
 export function SubjectsScreen() {
-  const folders = useLiveQuery(() => db.folders.orderBy('order').toArray(), [], []);
-  const boards = useLiveQuery(() => db.boards.orderBy('order').toArray(), [], []);
+  const folders = useCachedLiveQuery('folders:all', () => db.folders.orderBy('order').toArray(), [], []);
+  const boards = useCachedLiveQuery('boards:all', () => db.boards.orderBy('order').toArray(), [], []);
   const week = useWeekTotals();
   const [sel, setSel] = useState<Sel>(null);
   const [fresh, setFresh] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const wide = useWide();
 
-  const live = folders.filter((f) => !f.archived);
-  const liveBoards = boards.filter((b) => !b.archived);
+  // Stable between renders, so the tree layout is only rebuilt when folders or subjects change.
+  const live = useMemo(() => folders.filter((f) => !f.archived), [folders]);
+  const liveBoards = useMemo(() => boards.filter((b) => !b.archived), [boards]);
   const archivedFolders = folders.filter((f) => f.archived && !(f.parentId && folders.find((p) => p.id === f.parentId)?.archived));
   const archivedBoards = boards.filter((b) => b.archived && !(b.folderId && folders.find((f) => f.id === b.folderId)?.archived));
 
@@ -75,28 +77,28 @@ export function SubjectsScreen() {
     if (sel && !(sel.kind === 'folder' ? folders : boards).some((x) => x.id === sel.id)) setSel(null);
   }, [sel, folders, boards]);
 
-  const select = (s: Sel, isNew = false) => {
+  const select = useCallback((s: Sel, isNew = false) => {
     setSel(s);
     setFresh(isNew && s ? s.id : null);
-  };
-  const newFolder = async (parentId?: string) => select({ kind: 'folder', id: await addFolder({ name: parentId ? 'New subfolder' : 'New folder', color: '#E9B949', parentId }) }, true);
-  const newSubject = async (folderId?: string) =>
-    select({ kind: 'subject', id: await addSubject({ name: 'New subject', color: SWATCHES[(boards.length * 3) % SWATCHES.length], folderId }) }, true);
+  }, []);
+  const newFolder = useCallback(
+    async (parentId?: string) => select({ kind: 'folder', id: await addFolder({ name: parentId ? 'New subfolder' : 'New folder', color: '#E9B949', parentId }) }, true),
+    [select],
+  );
+  const boardCount = boards.length;
+  const newSubject = useCallback(
+    async (folderId?: string) => select({ kind: 'subject', id: await addSubject({ name: 'New subject', color: SWATCHES[(boardCount * 3) % SWATCHES.length], folderId }) }, true),
+    [select, boardCount],
+  );
 
   const dnd = useTreeDnd(live, liveBoards);
-  const ctx: TreeCtx = {
-    folders: new Map(live.map((f) => [f.id, f])),
-    boards: new Map(liveBoards.map((b) => [b.id, b])),
-    layout: dnd.layout,
-    week,
-    sel,
-    select,
-    newFolder,
-    newSubject,
-    dragging: dnd.dragging,
-    overBox: dnd.overBox,
-    landed: dnd.landed,
-  };
+  const folderMap = useMemo(() => new Map(live.map((f) => [f.id, f])), [live]);
+  const boardMap = useMemo(() => new Map(liveBoards.map((b) => [b.id, b])), [liveBoards]);
+  // One object per real change, so the memoised cards below skip renders that don't concern them.
+  const ctx: TreeCtx = useMemo(
+    () => ({ folders: folderMap, boards: boardMap, layout: dnd.layout, week, sel, select, newFolder, newSubject, dragging: dnd.dragging, overBox: dnd.overBox, landed: dnd.landed }),
+    [folderMap, boardMap, dnd.layout, week, sel, select, newFolder, newSubject, dnd.dragging, dnd.overBox, dnd.landed],
+  );
   const detail = sel && <Detail key={sel.id} sel={sel} fresh={fresh === sel.id} folders={folders} boards={boards} week={week} bare={!wide} onClose={() => setSel(null)} />;
 
   return (
@@ -369,7 +371,7 @@ function boxCls(ctx: TreeCtx, box: string, kind: Kind) {
   );
 }
 
-function FolderCard({ id, ctx }: { id: string; ctx: TreeCtx }) {
+const FolderCard = memo(function FolderCard({ id, ctx }: { id: string; ctx: TreeCtx }) {
   const folder = ctx.folders.get(id)!;
   const [open, setOpen] = useCollapsed(id);
   const subs = ctx.layout.folders[id] ?? [];
@@ -413,9 +415,9 @@ function FolderCard({ id, ctx }: { id: string; ctx: TreeCtx }) {
       {!open && ctx.dragging?.kind === 'subject' && item.isOver && <DropHint ctx={ctx} active>Drop into {folder.name}</DropHint>}
     </div>
   );
-}
+});
 
-function SubfolderBlock({ id, ctx }: { id: string; ctx: TreeCtx }) {
+const SubfolderBlock = memo(function SubfolderBlock({ id, ctx }: { id: string; ctx: TreeCtx }) {
   const folder = ctx.folders.get(id)!;
   const [open, setOpen] = useCollapsed(id);
   const subjects = ctx.layout.subjects[id] ?? [];
@@ -441,7 +443,7 @@ function SubfolderBlock({ id, ctx }: { id: string; ctx: TreeCtx }) {
       {!open && ctx.dragging?.kind === 'subject' && item.isOver && <DropHint ctx={ctx} active>Drop into {folder.name}</DropHint>}
     </div>
   );
-}
+});
 
 /** Hovering a closed folder with something in hand opens it. */
 function useHoverOpen(isOpen: boolean, open: () => void, hovering: boolean) {
@@ -498,7 +500,7 @@ function FolderHeader({ folder, ctx, open, onToggle, total, count, top, handle }
   );
 }
 
-function SubjectRow({ id, ctx }: { id: string; ctx: TreeCtx }) {
+const SubjectRow = memo(function SubjectRow({ id, ctx }: { id: string; ctx: TreeCtx }) {
   const board = ctx.boards.get(id)!;
   const what: Owner = { kind: 'subject', id };
   const sort = useSortable({ id: sid(id), data: what });
@@ -525,7 +527,7 @@ function SubjectRow({ id, ctx }: { id: string; ctx: TreeCtx }) {
       <span className="shrink-0 text-xs text-ink/50">{ms > 0 ? formatDuration(ms) : ''}</span>
     </div>
   );
-}
+});
 
 /** The lifted copy that follows the pointer while dragging. */
 function DragGhost({ what, ctx }: { what: Owner; ctx: TreeCtx }) {
@@ -555,7 +557,7 @@ function ArchivedRow({ color, name, folder, onRestore }: { color: string; name: 
   );
 }
 
-function LooseZone({ ctx }: { ctx: TreeCtx }) {
+const LooseZone = memo(function LooseZone({ ctx }: { ctx: TreeCtx }) {
   const box = `c:${LOOSE}`;
   const drop = useDroppable({ id: box });
   const subjects = ctx.layout.subjects[LOOSE] ?? [];
@@ -579,7 +581,7 @@ function LooseZone({ ctx }: { ctx: TreeCtx }) {
       )}
     </div>
   );
-}
+});
 
 function sumWeek(folderIds: string[], ctx: TreeCtx): number {
   return folderIds.flatMap((f) => ctx.layout.subjects[f] ?? []).reduce((n, b) => n + (ctx.week.get(b) ?? 0), 0);
@@ -750,7 +752,7 @@ const ownedBy = (x: { boardId?: string; folderId?: string }, o: Owner) => (o.kin
 
 function TasksBlock({ owner, inside, nameOf }: { owner: Owner; inside: Owner[]; nameOf: (o: Owner) => string }) {
   const all = [owner, ...inside];
-  const tasks = useLiveQuery(async () => (await db.tasks.toArray()).sort(byTaskOrder), [], []);
+  const tasks = useCachedLiveQuery('tasks:sorted', async () => (await db.tasks.toArray()).sort(byTaskOrder), [], []);
   const [text, setText] = useState('');
   const [showDone, setShowDone] = useState(false);
   const recent = Date.now() - DAY;
@@ -818,7 +820,7 @@ export function TaskRow({ task: t, tag }: { task: Task; tag?: ReactNode }) {
 }
 
 function NotesBlock({ owner, inside, nameOf }: { owner: Owner; inside: Owner[]; nameOf: (o: Owner) => string }) {
-  const notes = useLiveQuery(() => db.notes.orderBy('updatedAt').reverse().toArray(), [], []);
+  const notes = useCachedLiveQuery('notes:recent', () => db.notes.orderBy('updatedAt').reverse().toArray(), [], []);
   const [focusId, setFocusId] = useState<string | null>(null);
   const groups = [owner, ...inside].map((o) => ({ o, items: notes.filter((n) => ownedBy(n, o)) })).filter((g, i) => i === 0 || g.items.length);
   // Keep the order stable while typing (updatedAt changes on every keystroke).
@@ -934,10 +936,13 @@ function ColorDot({ color, onChange }: { color: string; onChange: (c: string) =>
   );
 }
 
+const NO_TOTALS = new Map<string, number>();
+
 /** Focus minutes per subject since Monday. */
 function useWeekTotals(): Map<string, number> {
   const from = weekStart(today());
-  return useLiveQuery(
+  return useCachedLiveQuery(
+    `subjects:week:${from}`,
     async () => {
       const m = new Map<string, number>();
       await db.sessions
@@ -950,7 +955,7 @@ function useWeekTotals(): Map<string, number> {
       return m;
     },
     [from],
-    new Map(),
+    NO_TOTALS,
   );
 }
 

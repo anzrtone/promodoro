@@ -84,6 +84,20 @@ export function hourProfile(sessions: Session[], sources: TimeSource[]): number[
   return hours;
 }
 
+/**
+ * Focus by local hour (0..23), split by source, for a single day's chart. Each session's worked
+ * time is spread over its wall-clock span, so pauses thin the hours out and the bars add up to the day.
+ */
+export function hourBySource(sessions: Session[], sources: TimeSource[]): Array<Record<TimeSource, number>> {
+  const hours = Array.from({ length: 24 }, () => ({ timed: 0, adjusted: 0, manual: 0, imported: 0 }));
+  for (const s of sessions) {
+    if (!charted(s, sources) || s.end <= s.start) continue;
+    const k = s.actualMs / (s.end - s.start);
+    eachHourSlice(s, (_, h, ms) => (hours[h][s.source] += ms * k));
+  }
+  return hours;
+}
+
 /** Focus ms as a 7×24 grid, Monday first, for the weekday × hour heatmap. */
 export function weekHourGrid(sessions: Session[], sources: TimeSource[]): number[][] {
   const grid = Array.from({ length: 7 }, () => new Array(24).fill(0));

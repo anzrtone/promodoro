@@ -68,7 +68,8 @@ removes the row.
 - **Write token.** The app derives a 64-hex token from the pairing code (separately from the encryption key) and
   sends it as `x-sync-token` on `PUT`/`DELETE`. The first write claims the id; the Worker stores only the token's
   SHA-256 in the object's metadata and answers 403 to anyone else. Snapshots written by older app versions have no
-  token and stay writable until a newer app claims them. Reads stay open (the blob is ciphertext).
+  token are claimed by the first token that arrives. A write or delete with no valid token is always refused (403),
+  including from apps older than 0.1.4. Reads stay open (the blob is ciphertext).
 - **Rate limit.** `wrangler.toml` binds the Workers Rate Limiting API as `LIMITER`: 20 writes a minute per address
   (the address goes to the limiter in memory and is never stored). Over the limit gets a 429. If your wrangler
   version or plan rejects the `[[ratelimits]]` block, delete it; the Worker skips the check when it isn't bound.

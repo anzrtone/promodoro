@@ -9,6 +9,10 @@ export interface TimerNotificationOptions {
   at: number;
   /** The time to show while paused. */
   frozen: string;
+  /** What a countdown does at zero while the app sleeps: keep counting (`up`) or disappear (`end`). */
+  after?: 'up' | 'end';
+  /** Prefix a running count-up with "+" (it is overtime). */
+  plus?: boolean;
 }
 
 export interface TimerNotificationPlugin {

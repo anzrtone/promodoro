@@ -3,7 +3,7 @@
  * No servers, no accounts. The user owns every byte (see backup.ts for export/import).
  *
  * Tables
- *  events   append-only log of every action (never updated, never deleted)
+ *  events   append-only log of every action (never updated; only past days' memory-jogger marks are pruned)
  *  timers   live projection of timers that haven't ended yet (rebuildable from events)
  *  sessions finished sessions (timer projections + manual + imported)
  *  daily    pre-computed per-day summaries so month/year views stay fast

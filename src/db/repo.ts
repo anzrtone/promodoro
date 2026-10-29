@@ -6,8 +6,8 @@
  */
 import { applyEvent, foldTimers, toSession, type PendingEvent } from '@/engine/timer';
 import { summarizeDay } from '@/engine/stats';
-import { localDay, tzNow, uid } from '@/engine/time';
-import type { AnyEvent, ManualSessionPayload, Session, TimerState } from '@/engine/types';
+import { dayStart, localDay, today, tzNow, uid } from '@/engine/time';
+import type { AnyEvent, ManualSessionPayload, Session, SessionPatch, TimerState } from '@/engine/types';
 import { db } from './schema';
 
 // Serialise writers so two quick taps can't interleave folds.
@@ -50,7 +50,7 @@ export function append(pending: PendingEvent[]): Promise<AppendResult> {
           const next: Session =
             e.type === 'session.edit' ? { ...s, ...e.data.patch } : { ...s, deleted: e.type === 'session.delete' };
           await db.sessions.put(next);
-          days.add(s.day);
+          days.add(s.day).add(next.day);
           continue;
         }
         if (e.type === 'task.done') {
@@ -132,6 +132,10 @@ export async function recomputeAllDays(): Promise<void> {
 
 export const getActiveTimers = () => db.timers.toArray();
 
+/** The most recently ended real session since `from`: an indexed walk back from the newest, not a scan of the window. */
+export const lastSessionSince = (from: number) =>
+  db.sessions.where('end').above(from).reverse().filter((s) => !s.deleted && !s.bulk).first();
+
 /** Add a session by hand: a past entry, a bulk lump, or a claimed timeline gap. */
 export async function addManualSession(p: Omit<ManualSessionPayload, 'sessionId'>): Promise<string> {
   const sessionId = uid('man');
@@ -139,15 +143,23 @@ export async function addManualSession(p: Omit<ManualSessionPayload, 'sessionId'
   return sessionId;
 }
 
-export const editSession = (sessionId: string, patch: Partial<Pick<Session, 'label' | 'boardId' | 'note' | 'mood'>>) =>
+export const editSession = (sessionId: string, patch: SessionPatch) =>
   append([{ type: 'session.edit', ts: Date.now(), data: { sessionId, patch } } as PendingEvent]);
 
 /** Soft delete: the log keeps everything; "Undo" restores it. */
 export const deleteSession = (sessionId: string) => append([{ type: 'session.delete', ts: Date.now(), data: { sessionId } } as PendingEvent]);
 export const restoreSession = (sessionId: string) => append([{ type: 'session.restore', ts: Date.now(), data: { sessionId } } as PendingEvent]);
 
-export const logAppEvent = (type: 'app.open' | 'app.resume' | 'app.background', data: Record<string, unknown> = {}) =>
-  append([{ type, ts: Date.now(), data } as PendingEvent]);
+export const logAppEvent = (type: JoggerEvent, data: Record<string, unknown> = {}) => append([{ type, ts: Date.now(), data } as PendingEvent]);
+
+/** Open / come-back / leave marks only feed the timeline's memory joggers for the day they happened. */
+export const JOGGER_EVENTS = ['app.open', 'app.resume', 'app.background'] as const;
+type JoggerEvent = (typeof JOGGER_EVENTS)[number];
+export const isStaleJogger = (e: Pick<AnyEvent, 'type' | 'ts'>, before: number) => (JOGGER_EVENTS as readonly string[]).includes(e.type) && e.ts < before;
+
+/** Drop memory-jogger marks from before today: they're never needed again, so they're just bloat. */
+export const pruneJoggers = (before = dayStart(today())) =>
+  db.events.where('type').anyOf(JOGGER_EVENTS).and((e) => e.ts < before).delete();
 
 /**
  * Disaster recovery: rebuild every timer-derived and manual session plus active timers

@@ -2,6 +2,7 @@
  * Development fallback used only by `npm run dev` in a desktop browser while iterating
  * on UI. Not a shipped target: alarms ring from the in-page engine, exports download.
  */
+import { setShade } from '@/dev/shade';
 import type { Platform } from './types';
 
 export const dev: Platform = {
@@ -9,6 +10,7 @@ export const dev: Platform = {
   backupFolderPickable: false,
   nativeAlarmSound: () => false,
   async init(h) {
+    setShade({ handlers: h });
     let hiddenAt = 0;
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
@@ -23,6 +25,10 @@ export const dev: Platform = {
   async syncAlarms() {},
   async setStatus(s) {
     document.title = s ? `${s.text} · Promodoro` : 'Promodoro';
+    setShade({ status: s, statusAt: Date.now() });
+  },
+  async scheduleReport(r) {
+    setShade({ report: r });
   },
   async requestNotificationPermission() {
     return true;

@@ -12,6 +12,7 @@ import type {
   EventMap,
   LogEvent,
   Session,
+  SessionPatch,
   TimerSnapshot,
   TimerState,
 } from './types';
@@ -251,6 +252,29 @@ export function dueEvents(s: TimerState, now: number): PendingEvent[] {
 }
 
 /** Project a finished timer into a Session record. */
+/**
+ * Move a session to new start/end times. Pauses stay (clamped to the new span), the clock-measured
+ * part can only shrink, and whatever is left over counts as recovered. A timed session whose
+ * times were changed by hand reads as "timed + recovered" from then on.
+ */
+export function retime(s: Session, start: number, end: number): SessionPatch {
+  const span = Math.max(0, end - start);
+  const pausedMs = Math.min(s.pausedMs, span);
+  const actualMs = span - pausedMs;
+  const timedMs = Math.min(s.timedMs, actualMs);
+  return {
+    start,
+    end,
+    day: localDay(start, s.tz),
+    actualMs,
+    timedMs,
+    recoveredMs: actualMs - timedMs,
+    pausedMs,
+    overtimeMs: s.overtimeMs && s.plannedMs ? Math.max(0, actualMs - s.plannedMs) : 0,
+    source: s.source === 'timed' ? 'adjusted' : s.source,
+  };
+}
+
 export function toSession(s: TimerState): Session | null {
   if (s.status !== 'done' || s.endedAt === null || s.endReason === 'discarded') return null;
   const snap = snapshot(s, s.endedAt);
