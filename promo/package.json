@@ -1,0 +1,25 @@
+{
+  "name": "promodoro-trailer",
+  "private": true,
+  "type": "module",
+  "description": "The 30 s 9:16 Promodoro trailer: app captures (Playwright), composition (Remotion), SFX (the app's synth).",
+  "scripts": {
+    "capture": "bash capture/all.sh",
+    "studio": "remotion studio remotion/index.ts",
+    "sfx": "tsx audio/render-sfx.ts",
+    "render": "node remotion/render.mjs"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.539",
+    "@remotion/cli": "^4.0.539",
+    "@remotion/renderer": "^4.0.539",
+    "@remotion/tailwind": "^4.0.539",
+    "@types/react": "^18.3.31",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.539",
+    "tailwindcss": "^3.4.19",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}
