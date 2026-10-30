@@ -11,7 +11,7 @@ font = lambda s, b=False: ImageFont.truetype(f"/usr/share/fonts/truetype/dejavu/
 
 def picks(b):
     a, z = round(b['from'] * FPS), round(b['to'] * FPS)
-    return [a + (75 if a == 0 else 12), (a + z) // 2, min(z, 1800) - 12]
+    return [a + (18 if a == 0 else 12), (a + z) // 2, min(z, 1800) - 12]
 
 cols = len(beats)
 sheet = Image.new('RGB', (PAD + cols * (TW + PAD), 70 + 3 * (TH + 34) + 120), '#FDFBF7')

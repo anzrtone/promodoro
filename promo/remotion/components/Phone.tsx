@@ -21,8 +21,11 @@ export interface Segment {
   /** Clip seconds shown at `from`. */
   clip: number;
   rate?: number;
-  /** Push-in: scale s0→s1 across the page, around (ox, oy) as fractions of the screen. */
-  zoom?: { ox: number; oy: number; s0: number; s1: number };
+  /**
+   * Push-in on the focal UI: eases in to `s` over 0.6 s from `at` (a bar line, default `from`) and
+   * back out to 1 just before the page turns, around (ox, oy) as fractions of the screen.
+   */
+  zoom?: { ox: number; oy: number; s: number; at?: number };
   taps?: Tap[];
   /** Page-turn length into this page (frames). */
   turn?: number;
@@ -32,7 +35,7 @@ const BODY_W = PHONE.screenW + PHONE.bezel * 2;
 const BODY_H = SCREEN_H + PHONE.bezel * 2;
 const PX = PHONE.screenW / 412; // capture CSS px → composition px
 
-export function PhoneFrame({ x = PHONE.cx, y = PHONE.cy, scale = 1, rotate = 0, rotX = 0, rotY = 0, dim = 0, children, style }: { x?: number; y?: number; scale?: number; rotate?: number; rotX?: number; rotY?: number; dim?: number; children: ReactNode; style?: CSSProperties }) {
+export function PhoneFrame({ x = PHONE.cx, y = PHONE.cy, scale = 1, rotate = 0, rotX = 0, rotY = 0, dim = 0, blur = 0, children, style }: { x?: number; y?: number; scale?: number; rotate?: number; rotX?: number; rotY?: number; dim?: number; blur?: number; children: ReactNode; style?: CSSProperties }) {
   return (
     <div
       style={{
@@ -59,7 +62,7 @@ export function PhoneFrame({ x = PHONE.cx, y = PHONE.cy, scale = 1, rotate = 0, 
         }}
       >
         <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: PHONE.radius - PHONE.bezel, overflow: 'hidden', background: 'rgb(var(--pm-creme))', isolation: 'isolate' }}>
-          {children}
+          <div style={{ position: 'absolute', inset: 0, filter: blur > 0 ? `blur(${blur}px)` : undefined }}>{children}</div>
           {/* punch-hole camera */}
           <div style={{ position: 'absolute', top: 14, left: '50%', width: 20, height: 20, marginLeft: -10, borderRadius: 99, background: '#1F2220', boxShadow: 'inset 0 0 0 3px #2D312E' }} />
           {dim > 0 && <div style={{ position: 'absolute', inset: 0, background: `rgb(45 49 46 / ${dim * 0.5})` }} />}
@@ -107,8 +110,9 @@ function Page({ seg, start, end, turn }: { seg: Segment; start: number; end: num
   // Clip frame at the start of this sequence (the page shows a little before `from`, during the turn in).
   const clipAtStart = seg.clip - ((fr(seg.from) - start) / FPS) * rate;
   const z = seg.zoom;
-  const zp = z ? out(clamp((frame / FPS - seg.from) / (seg.to - seg.from), 0, 1)) : 0;
-  const scale = z ? z.s0 + (z.s1 - z.s0) * zp : 1;
+  const t = frame / FPS;
+  const zp = z ? inOut(clamp((t - (z.at ?? seg.from)) / 0.6, 0, 1)) * (1 - inOut(clamp((t - (seg.to - 0.75)) / 0.6, 0, 1))) : 0;
+  const scale = z ? 1 + (z.s - 1) * zp : 1;
   const angle = turn * 100;
   return (
     <div

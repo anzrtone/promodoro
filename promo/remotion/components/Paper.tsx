@@ -179,7 +179,7 @@ export function PriceTag({ x, y, tilt, flip, show }: { x: number; y: number; til
 }
 
 /** A small doodled padlock that springs open and bursts into Pomo-style sparkles. */
-export function Padlock({ x, y, show, open, burst }: { x: number; y: number; show: number; open: number; burst: number }) {
+export function Padlock({ x, y, show, open, burst, size = 2 }: { x: number; y: number; show: number; open: number; burst: number; size?: number }) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   if (t < show) return null;
@@ -190,7 +190,7 @@ export function Padlock({ x, y, show, open, burst }: { x: number; y: number; sho
   const N = 10;
   return (
     <div style={{ position: 'absolute', left: x, top: y }}>
-      <svg width={160} height={180} viewBox="-80 -100 160 180" style={{ position: 'absolute', left: -80, top: -100, overflow: 'visible', opacity: 1 - lockGone, transform: `scale(${appear * (1 + lockGone * 0.5)}) rotate(-6deg)` }}>
+      <svg width={160} height={180} viewBox="-80 -100 160 180" style={{ position: 'absolute', left: -80, top: -100, overflow: 'visible', opacity: 1 - lockGone, transform: `scale(${size * appear * (1 + lockGone * 0.5)}) rotate(-6deg)` }}>
         <g fill="none" stroke={INK} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round">
           <path d="M-24 -10 C-25 -46 25 -48 24 -12" transform={`translate(${lift * 10} ${-lift * 22}) rotate(${lift * 24} 24 -12)`} />
           <path d="M-40 -12 C-14 -15 18 -13 41 -10 C43 14 42 38 39 56 C14 59 -14 58 -39 55 C-42 30 -42 8 -40 -12Z" fill="#F5EFE0" />
@@ -201,11 +201,11 @@ export function Padlock({ x, y, show, open, burst }: { x: number; y: number; sho
       {b > 0 && b < 1 &&
         Array.from({ length: N }, (_, i) => {
           const a = (i / N) * Math.PI * 2 + 0.3;
-          const dist = 30 + 120 * out(b) * (0.7 + ((i * 37) % 10) / 20);
+          const dist = size * (30 + 120 * out(b) * (0.7 + ((i * 37) % 10) / 20));
           const s = (1.4 + (i % 3) * 0.5) * (1 - b) * (0.6 + Math.abs(Math.sin(b * 9 + i)) * 0.6);
           return (
-            <svg key={i} width={4} height={4} style={{ position: 'absolute', left: Math.cos(a) * dist, top: Math.sin(a) * dist - 20, overflow: 'visible' }}>
-              <path d={SPARKLE} transform={`scale(${s * 1.6}) rotate(${b * 90})`} fill="#FFE893" stroke="#E9C85C" strokeWidth={0.8} />
+            <svg key={i} width={4} height={4} style={{ position: 'absolute', left: Math.cos(a) * dist, top: Math.sin(a) * dist - 20 * size, overflow: 'visible' }}>
+              <path d={SPARKLE} transform={`scale(${s * 1.6 * size}) rotate(${b * 90})`} fill="#FFE893" stroke="#E9C85C" strokeWidth={0.8} />
             </svg>
           );
         })}
@@ -232,30 +232,32 @@ export function DesktopWindow({ x, y, width, rotate, shot, from, opacity = 1, cl
   );
 }
 
-/** The end card: the Promodoro wordmark stamps down on the final hit, then the small print. */
-export function EndCard({ stamp, y = 1090 }: { stamp: number; y?: number }) {
+/**
+ * The end card: the Promodoro wordmark (about 75 % of the frame width) falls and stamps down on the
+ * final hit, fully opaque from that frame, then the small print. Both hold to the last frame.
+ */
+export function EndCard({ stamp, x = 480, y = 1000 }: { stamp: number; x?: number; y?: number }) {
   const frame = useCurrentFrame();
-  const t = frame / FPS;
-  const fall = clamp((frame - (fr(stamp) - 12)) / 12, 0, 1);
+  const land = fr(stamp);
+  const fall = clamp((frame - (land - 12)) / 12, 0, 1);
   if (fall <= 0) return null;
-  const after = Math.max(0, frame - fr(stamp)) / FPS;
-  // falls in (ease-in), lands exactly on the stamp frame, then a short squash and settle
-  const s = fall < 1 ? 1.6 - 0.6 * inQuad(fall) : 1 + Math.sin(Math.min(1, after / 0.3) * Math.PI) * -0.05 * Math.exp(-after * 4);
-  const squashY = fall < 1 ? 1 : 1 - Math.sin(Math.min(1, after / 0.18) * Math.PI) * 0.07;
-  const small = prog(frame, stamp + 0.25, stamp + 0.6, out);
+  const after = Math.max(0, frame - land) / FPS;
+  const s = fall < 1 ? 1.35 - 0.35 * inQuad(fall) : 1 - Math.sin(Math.min(1, after / 0.3) * Math.PI) * 0.03 * Math.exp(-after * 4);
+  const squashY = fall < 1 ? 1 : 1 - Math.sin(Math.min(1, after / 0.18) * Math.PI) * 0.06;
+  const small = prog(frame, stamp + 0.12, stamp + 0.42, out);
   const ink = clamp(after / 0.5, 0, 1);
+  const WORD = 174;
   return (
-    <div style={{ position: 'absolute', left: 0, width: W, top: y - 110, textAlign: 'center' }}>
-      {/* the stamp's ink ring, pressed into the paper */}
+    <>
       {fall >= 1 && (
-        <div style={{ position: 'absolute', left: W / 2 - 20 - 330 * (0.9 + ink * 0.15), top: 100 - 80 * (0.9 + ink * 0.15), width: 660 * (0.9 + ink * 0.15), height: 160 * (0.9 + ink * 0.15), borderRadius: '50%', border: '4px solid rgb(238 107 110 / 0.5)', opacity: (1 - ink) * 0.8 }} />
+        <div style={{ position: 'absolute', left: x - 450 * (0.92 + ink * 0.12), top: y - 120 * (0.92 + ink * 0.12), width: 900 * (0.92 + ink * 0.12), height: 240 * (0.92 + ink * 0.12), borderRadius: '50%', border: '5px solid rgb(238 107 110 / 0.45)', opacity: (1 - ink) * 0.8 }} />
       )}
-      <div style={{ fontFamily: 'Fredoka', fontWeight: 600, fontSize: 140, lineHeight: 1.3, color: '#EE6B6E', transform: `translateX(-20px) scale(${s}, ${s * squashY})`, opacity: Math.min(1, fall * 4), textShadow: '0 6px 0 rgb(217 84 90 / 0.25)' }}>Promodoro</div>
-      <div style={{ marginTop: 6, fontFamily: 'Nunito', fontWeight: 700, fontSize: 36, lineHeight: 1.35, color: 'rgb(45 49 46 / 0.7)', opacity: small, transform: `translate(-20px, ${(1 - small) * 14}px)` }}>
+      <div style={{ position: 'absolute', left: x - 500, width: 1000, top: y - WORD * 0.68, textAlign: 'center', fontFamily: 'Fredoka', fontWeight: 600, fontSize: WORD, lineHeight: 1.3, color: '#EE6B6E', transform: `scale(${s}, ${s * squashY})`, opacity: Math.min(1, fall * 1.6), textShadow: '0 7px 0 rgb(217 84 90 / 0.22)' }}>Promodoro</div>
+      <div style={{ position: 'absolute', left: x - 500, width: 1000, top: y + WORD * 0.62, textAlign: 'center', fontFamily: 'Nunito', fontWeight: 700, fontSize: 46, lineHeight: 1.3, color: 'rgb(45 49 46 / 0.78)', opacity: small, transform: `translateY(${(1 - small) * 14}px)` }}>
         Every feature, free forever
         <br />
         Windows + Android
       </div>
-    </div>
+    </>
   );
 }

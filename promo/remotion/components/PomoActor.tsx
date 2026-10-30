@@ -15,14 +15,19 @@ export interface Stop {
   y: number;
   /** Pomo's size in px. */
   s: number;
-  /** Lean (deg) toward what Pomo presents: the wing-point gesture. */
+  /** Lean (deg) toward what Pomo presents. */
   lean?: number;
+  /** Raise the screen-left / screen-right wing (deg): the wing-point gesture. */
+  wl?: number;
+  wr?: number;
   e?: Ease;
 }
 
 export interface PomoActorProps {
   path: Stop[];
   moods: Array<[t: number, mood: PomoMood]>;
+  /** A wave with the screen-right wing over [from, to] seconds. */
+  wave?: [number, number];
   /** Halo drop offset (px, in Pomo's 200-unit space), for the "halo drops into place" entrance. */
   haloDrop?: Key[];
   /** Hung under Pomo (the price tag): rendered in Pomo's moving frame. */
@@ -47,7 +52,7 @@ export function pomoAt(path: Stop[], frame: number) {
   return { x: x + fx, y: y + fy, s, tilt: bank + lean };
 }
 
-export function PomoActor({ path, moods, haloDrop, carry, style }: PomoActorProps) {
+export function PomoActor({ path, moods, wave, haloDrop, carry, style }: PomoActorProps) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   const { x, y, s, tilt } = pomoAt(path, frame);
@@ -62,6 +67,14 @@ export function PomoActor({ path, moods, haloDrop, carry, style }: PomoActorProp
   const k = clamp((t - since) / 0.25, 0, 1);
   const popScale = since > 0 ? 1 + Math.sin(k * Math.PI) * 0.07 : 1;
   const drop = haloDrop ? track(frame, haloDrop) : 0;
+  let wl = track(frame, keys(path, (p) => p.wl ?? 0));
+  let wr = track(frame, keys(path, (p) => p.wr ?? 0));
+  if (wave && t > wave[0] && t < wave[1]) {
+    const k = (t - wave[0]) / (wave[1] - wave[0]);
+    const env = Math.sin(Math.PI * k);
+    wr += env * (38 + 22 * Math.sin(k * Math.PI * 2 * 3));
+    wl += env * 6;
+  }
   return (
     <>
       {carry?.({ x, y, s, tilt })}
@@ -76,6 +89,8 @@ export function PomoActor({ path, moods, haloDrop, carry, style }: PomoActorProp
           transform: `rotate(${tilt}deg) scale(${popScale})`,
           filter: 'drop-shadow(0 18px 22px rgb(45 49 46 / 0.16))',
           ['--halo-drop' as string]: `${drop}px`,
+          ['--wing-l' as string]: `${wl}deg`,
+          ['--wing-r' as string]: `${wr}deg`,
           ...style,
         }}
       >

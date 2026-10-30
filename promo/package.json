@@ -7,7 +7,8 @@
     "capture": "bash capture/all.sh",
     "studio": "remotion studio remotion/index.ts",
     "sfx": "tsx audio/render-sfx.ts",
-    "render": "node remotion/render.mjs"
+    "animatic": "bash remotion/animatic.sh",
+    "render": "node --experimental-strip-types remotion/render.mjs video && bash remotion/finish.sh"
   },
   "dependencies": {
     "@remotion/bundler": "^4.0.539",

@@ -30,3 +30,12 @@
 .pomo-actor .animate-halo {
   translate: 0 var(--halo-drop, 0px);
 }
+
+/* Wing gestures (wave, point) on top of each wing's own flap. The left wing's group has an empty
+   transform; the right one is mirrored with translate(200 0) scale(-1 1). Positive raises. */
+.pomo-actor g[transform=''] > .animate-flap {
+  rotate: var(--wing-l, 0deg);
+}
+.pomo-actor g[transform^='translate(200'] > .animate-flap {
+  rotate: var(--wing-r, 0deg);
+}

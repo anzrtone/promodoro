@@ -2,72 +2,62 @@
  * Promodoro, 30 s, 9:16. Pomo gives a tour of the real app, cut to the 87 BPM grid in timing.ts.
  */
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
-import { clamp, CssAnimationClock, inOut, out, pop, prog, track } from './anim';
-import { FLIP, FPS, MONTAGE, PHONE, SYNC, T } from './timing';
+import { clamp, CssAnimationClock, inOut, inQuad, out, pop, prog } from './anim';
+import { FPS, MONTAGE, PHONE, T } from './timing';
 import { PomoActor, type Stop } from './components/PomoActor';
-import { PhoneFrame, ScreenTrack, type Segment, type Tap } from './components/Phone';
+import { PhoneFrame, ScreenTrack } from './components/Phone';
 import { DesktopWindow, EndCard, HandCaption, MontageWords, NotebookBg, Padlock, PriceTag } from './components/Paper';
 import forgot from '../footage/forgot.json';
-import timeline from '../footage/timeline.json';
-import stats from '../footage/stats.json';
-import stickers from '../footage/stickers.json';
+import { CAPTIONS, SEGMENTS, WHY } from './edit';
 
-const taps = (j: { taps: Tap[] }) => j.taps;
+/** Guide Pomo widths: opening 55 %, app beats 28 %, the $0 reveal 45 %, end card 35 % of the frame. */
+const S = { open: 600, app: 300, reveal: 486, end: 378 };
+const L = 200; // parked on the phone's left edge, over the bezel and the page
+const R = 795; // …or its right edge (stays left of the right-hand safe zone)
 
 /**
- * The countdown clip's first frame showing +00:00. The DOM marker (marks['+00:00']) fires about two
- * frames before the screencast shows it, so this is measured on the clip itself (frame 262 of the
- * current take; re-check with a frame grab after re-recording). It lands on frame 331 (T.flow).
+ * The app's own Pomo sits at (520, 822) in the frame (body centre) while the idle screen plays. In the
+ * free-forever beat the guide Pomo is centred on it at 1.85× its size, which covers it completely
+ * (Pomo's body centre is 7 % of its size below the middle of its box).
  */
-const ZERO_FRAME = 262.4;
-const ZERO = ZERO_FRAME / FPS;
-
-export const SEGMENTS: Segment[] = [
-  { shot: 'countdown', from: 3.3, to: T.forgot, clip: 3.3 - SYNC.zero / FPS + ZERO, zoom: { ox: 0.5, oy: 0.4, s0: 1, s1: 1.16 } },
-  { shot: 'forgot', from: T.forgot, to: T.timeline, clip: 0.4, zoom: { ox: 0.5, oy: 0.62, s0: 1, s1: 1.14 }, taps: taps(forgot) },
-  { shot: 'timeline', from: T.timeline, to: T.stats, clip: 1.1, rate: 1.4, zoom: { ox: 0.5, oy: 0.26, s0: 1, s1: 1.12 }, taps: taps(timeline) },
-  { shot: 'stats', from: T.stats, to: T.stickers, clip: 1.45, rate: 1.12, zoom: { ox: 0.5, oy: 0.3, s0: 1, s1: 1.1 }, taps: taps(stats) },
-  { shot: 'stickers', from: T.stickers, to: T.montage, clip: 1.15, zoom: { ox: 0.5, oy: 0.45, s0: 1, s1: 1.06 }, taps: taps(stickers) },
-  { shot: 'm-focusmode', from: MONTAGE[0], to: MONTAGE[1], clip: 1.6, turn: FLIP },
-  { shot: 'm-subjects', from: MONTAGE[1], to: MONTAGE[2], clip: 1.25, turn: FLIP },
-  { shot: 'm-share', from: MONTAGE[2], to: MONTAGE[3], clip: 1.45, turn: FLIP },
-  { shot: 'm-sync', from: MONTAGE[3], to: T.free, clip: 1.3, turn: FLIP },
-  { shot: 'idle', from: T.free, to: 30, clip: 0, rate: 0.8 },
-];
+const COVER = { x: 520, y: 822 - 0.07 * S.reveal };
 
 const POMO_PATH: Stop[] = [
-  { t: 0, x: -240, y: 260, s: 380 },
-  { t: 0.25, x: -240, y: 260, s: 380 },
-  { t: 1.25, x: 540, y: 880, s: 400, e: out },
-  { t: 3.0, x: 540, y: 860, s: 400 },
-  { t: 3.7, x: 172, y: 640, s: 230, lean: 8 },
-  { t: 8.1, x: 172, y: 660, s: 230, lean: 8 },
-  { t: 8.6, x: 880, y: 960, s: 210, lean: -10 },
-  { t: 10.95, x: 880, y: 980, s: 210, lean: -10 },
-  { t: 11.4, x: 185, y: 600, s: 220, lean: 10 },
-  { t: 13.7, x: 185, y: 620, s: 220, lean: 10 },
-  { t: 14.1, x: 880, y: 700, s: 230, lean: -8 },
-  { t: 16.45, x: 880, y: 720, s: 230, lean: -8 },
-  { t: 16.85, x: 180, y: 1000, s: 220, lean: 6 },
-  { t: 19.2, x: 180, y: 1000, s: 220, lean: 6 },
-  // the montage: Pomo darts to a new spot on every beat
-  { t: MONTAGE[0] + 0.22, x: 880, y: 640, s: 200, lean: -8, e: out },
-  { t: MONTAGE[1], x: 880, y: 650, s: 200, lean: -8 },
-  { t: MONTAGE[1] + 0.22, x: 180, y: 840, s: 200, lean: 8, e: out },
-  { t: MONTAGE[2], x: 180, y: 850, s: 200, lean: 8 },
-  { t: MONTAGE[2] + 0.22, x: 880, y: 1080, s: 200, lean: -8, e: out },
-  { t: MONTAGE[3], x: 880, y: 1090, s: 200, lean: -8 },
-  { t: MONTAGE[3] + 0.22, x: 190, y: 620, s: 200, lean: 8, e: out },
-  { t: 21.62, x: 190, y: 620, s: 200, lean: 0 },
-  // up to the middle, holding the price tag, arriving just before the hit
-  { t: 22.02, x: 540, y: 760, s: 300, e: out },
-  { t: 24.75, x: 540, y: 760, s: 300 },
-  { t: 25.2, x: 540, y: 690, s: 260 },
-  { t: 27.5, x: 540, y: 690, s: 260 },
-  { t: 27.95, x: 540, y: 610, s: 220 },
-  { t: 28.6, x: 540, y: 610, s: 220 },
-  { t: 28.95, x: 520, y: 760, s: 300, e: out },
-  { t: 30, x: 520, y: 750, s: 300 },
+  // in from off-screen, settling a little above the middle
+  { t: 0, x: -330, y: 700, s: S.open },
+  { t: 0.42, x: 540, y: 850, s: S.open, e: pop },
+  { t: 3.0, x: 540, y: 850, s: S.open },
+  // to the phone's edge as it rises: pointing at the app's own Pomo
+  { t: 3.75, x: L, y: 700, s: S.app, lean: 8, wr: 50 },
+  { t: 8.0, x: L, y: 710, s: S.app, lean: 8, wr: 50 },
+  // Get time back: right edge (the chips are central), a point back at the app's Pomo before the push-in hides it
+  { t: 8.45, x: R, y: 800, s: S.app, lean: -8, wl: 45 },
+  { t: 8.85, x: R, y: 800, s: S.app, lean: -8, wl: 45 },
+  { t: 9.2, x: R, y: 810, s: S.app, lean: -4 },
+  { t: 10.8, x: R, y: 810, s: S.app, lean: -4 },
+  // Honest history: low on the left, under the gap it presents
+  { t: 11.25, x: L, y: 1250, s: S.app, lean: 10, wr: 30 },
+  { t: 13.55, x: L, y: 1250, s: S.app, lean: 10, wr: 30 },
+  // Stats: right edge, beside the big total
+  { t: 14.0, x: R, y: 700, s: S.app, lean: -10, wl: 40 },
+  { t: 16.3, x: R, y: 700, s: S.app, lean: -10, wl: 40 },
+  // No streaks: left edge, the card is pushed in on the right
+  { t: 16.75, x: L, y: 900, s: S.app, lean: 10, wr: 35 },
+  { t: 19.15, x: L, y: 900, s: S.app, lean: 10, wr: 35 },
+  // the montage: a new edge on every beat
+  { t: MONTAGE[0] + 0.22, x: R, y: 700, s: S.app, lean: -8, e: out },
+  { t: MONTAGE[1], x: R, y: 710, s: S.app, lean: -8 },
+  { t: MONTAGE[1] + 0.22, x: L, y: 950, s: S.app, lean: 8, e: out },
+  { t: MONTAGE[2], x: L, y: 960, s: S.app, lean: 8 },
+  { t: MONTAGE[2] + 0.22, x: R, y: 1150, s: S.app, lean: -8, e: out },
+  { t: MONTAGE[3], x: R, y: 1160, s: S.app, lean: -8 },
+  { t: MONTAGE[3] + 0.22, x: L, y: 720, s: S.app, lean: 8, e: out },
+  // up over the app's own Pomo with the price tag, arriving just before the hit
+  { t: 22.02, x: COVER.x, y: COVER.y, s: S.reveal, e: out },
+  { t: T.end, x: COVER.x, y: COVER.y, s: S.reveal },
+  // centred above the wordmark
+  { t: 28.1, x: 480, y: 640, s: S.end },
+  { t: 30, x: 480, y: 640, s: S.end },
 ];
 
 const MOODS: Array<[number, import('@/components/Pomo').PomoMood]> = [
@@ -93,15 +83,14 @@ export function Trailer() {
   // Camera: a slow push-in on the whole page during "why".
   const cam = 1 + 0.04 * prog(frame, T.why, T.end, inOut) * (1 - prog(frame, T.end, T.end + 0.4));
 
-  // Phone: slides up onto the page at ~3.5 s, dims under the free-forever beat, then makes way.
-  const enter = prog(frame, 3.35, 4.1, pop);
-  const apart = prog(frame, T.end, T.end + 0.45, out);
-  const exit = prog(frame, 28.5, 28.95, inOut);
-  const phoneX = PHONE.cx + (310 - PHONE.cx) * apart - 700 * exit;
-  const phoneY = PHONE.cy + (1 - enter) * 1500 + (1060 - PHONE.cy) * apart;
-  const phoneScale = 1 - 0.36 * apart;
-  const phoneRot = -5 * (1 - enter) - 7 * apart;
-  const dim = clamp(prog(frame, T.free - 0.2, T.free + 0.25) - prog(frame, T.end - 0.1, T.end + 0.3), 0, 1) * 0.55;
+  // Phone: rises from below at 3.0 s; dimmed and blurred under the free-forever beat; then flanks
+  // the wordmark (left, small) and slides out as it stamps.
+  const enter = prog(frame, 3.0, 3.75, pop);
+  const flank = prog(frame, T.end, T.end + 0.5, inOut);
+  const exit = prog(frame, T.stamp, T.stamp + 0.35, inQuad);
+  const phoneX = PHONE.cx + (175 - PHONE.cx) * flank - 600 * exit;
+  const phoneY = PHONE.cy + (1 - enter) * 1500 + (1080 - PHONE.cy) * flank;
+  const under = clamp(prog(frame, T.free - 0.17, T.free + 0.23) - prog(frame, T.end, T.end + 0.35), 0, 1);
 
   return (
     <AbsoluteFill className="trailer" style={{ background: '#FDFBF7' }}>
@@ -109,25 +98,15 @@ export function Trailer() {
       <div style={{ position: 'absolute', inset: 0, transform: `scale(${cam})`, transformOrigin: '50% 48%' }}>
         <NotebookBg drift={t * 7} />
 
-        {t > 3.2 && t < 29.1 && (
-          <PhoneFrame x={phoneX} y={phoneY} scale={phoneScale} rotate={phoneRot} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={dim}>
+        {t > 2.95 && t < T.stamp + 0.4 && (
+          <PhoneFrame x={phoneX} y={phoneY} scale={1 - 0.55 * flank} rotate={-5 * (1 - enter) - 6 * flank} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={under * 0.55} blur={under * 6}>
             <ScreenTrack segments={SEGMENTS} />
           </PhoneFrame>
         )}
 
-        {t > T.end - 0.1 && t < 29.1 && (
-          <DesktopWindow
-            shot="desktop"
-            from={T.end - 0.1}
-            x={700 + (1 - apart) * 500 + 700 * exit}
-            y={1010}
-            width={470}
-            rotate={6}
-            opacity={Math.min(1, apart * 2)}
-          />
-        )}
+        {t > T.end - 0.05 && t < T.stamp + 0.4 && <DesktopWindow shot="desktop" from={T.end - 0.05} x={790 + (1 - flank) * 650 + 700 * exit} y={1060} width={300} rotate={6} />}
 
-        <Padlock x={150} y={1330} show={T.free - 0.25} open={T.free + 0.2} burst={T.free + 0.42} />
+        <Padlock x={150} y={1180} show={T.free - 0.52} open={T.free - 0.22} burst={T.free} />
 
         {/* the why note: a sticky note taped to the page */}
         <WhyNote />
@@ -135,26 +114,22 @@ export function Trailer() {
         <PomoActor
           path={POMO_PATH}
           moods={MOODS}
+          wave={[1.5, 2.5]}
           haloDrop={[
             [0, -150],
-            [1.1, -150],
-            [1.5, 0, pop],
+            [0.45, -150],
+            [0.8, 0, pop],
           ]}
           carry={({ x, y, s, tilt }) => <PriceTag x={x} y={y + s * 0.34} tilt={tilt} flip={T.free} show={[T.free - 0.35, T.end - 0.1]} />}
         />
 
-        {/* captions, top third */}
-        <HandCaption from={1.45} to={5.4} lines={["Hi! I'm Pomo."]} />
-        <HandCaption from={5.6} to={8.2} lines={['Keep going', 'past zero.']} />
-        <HandCaption from={8.36} to={10.95} lines={['Forgot to start?', 'Get it back.']} />
-        <HandCaption from={11.11} to={13.71} lines={['No judgment.', 'Just your day.']} />
-        <HandCaption from={13.87} to={16.47} lines={['Watch your weeks', 'take shape.']} />
-        <HandCaption from={16.63} to={19.23} lines={['No streaks.', 'Just stickers.']} />
+        {/* captions, top third (the montage words take the caption spot on their beat) */}
+        {CAPTIONS.map((c, i) => (
+          <HandCaption key={i} {...c} />
+        ))}
         <MontageWords beats={MONTAGE} until={T.free - 0.15} />
-        <HandCaption from={T.free} to={T.end - 0.15} write={0.42} size={116} lines={['Every feature.', { text: 'Free forever.', mark: 'forever' }]} />
-        <HandCaption from={T.end + 0.08} to={31} lines={['Focus at', 'your own pace.']} />
 
-        <EndCard stamp={T.stamp} y={1090} />
+        <EndCard stamp={T.stamp} x={480} y={1000} />
       </div>
     </AbsoluteFill>
   );
@@ -172,9 +147,9 @@ function WhyNote() {
         style={{
           position: 'absolute',
           left: 520 - 400,
-          top: 1210,
+          top: 1345,
           width: 800,
-          height: 240,
+          height: 185,
           borderRadius: 14,
           background: '#F5EFE0',
           border: '2px solid #E5DFD1',
@@ -185,7 +160,7 @@ function WhyNote() {
       >
         <div className="washi" style={{ position: 'absolute', top: -14, left: '50%', width: 130, height: 30, marginLeft: -65, transform: 'rotate(-3deg)', borderRadius: 3, background: 'rgb(255 232 147 / 0.75)', backgroundImage: 'repeating-linear-gradient(45deg, rgb(255 255 255 / 0.3) 0 7px, transparent 7px 14px)' }} />
       </div>
-      <HandCaption from={T.why + 0.2} to={T.end - 0.1} y={1242} size={60} write={0.55} lines={['No account. No trial.', 'Made for students on a budget.']} />
+      <HandCaption {...WHY} />
     </>
   );
 }
