@@ -32,7 +32,7 @@ if (mode === 'stills') {
   await renderMedia({
     ...opts,
     codec: 'h264',
-    output,
+    outputLocation: output,
     muted: true,
     videoBitrate: '20M',
     x264Preset: 'slow',
