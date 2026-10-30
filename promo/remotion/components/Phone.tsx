@@ -23,9 +23,10 @@ export interface Segment {
   rate?: number;
   /**
    * Push-in on the focal UI: eases in to `s` over 0.6 s from `at` (a bar line, default `from`) and
-   * back out to 1 just before the page turns, around (ox, oy) as fractions of the screen.
+   * back out to 1 by `until` (default: just before the page turns), around (ox, oy) as fractions
+   * of the screen.
    */
-  zoom?: { ox: number; oy: number; s: number; at?: number };
+  zoom?: { ox: number; oy: number; s: number; at?: number; until?: number };
   taps?: Tap[];
   /** Page-turn length into this page (frames). */
   turn?: number;
@@ -111,7 +112,7 @@ function Page({ seg, start, end, turn }: { seg: Segment; start: number; end: num
   const clipAtStart = seg.clip - ((fr(seg.from) - start) / FPS) * rate;
   const z = seg.zoom;
   const t = frame / FPS;
-  const zp = z ? inOut(clamp((t - (z.at ?? seg.from)) / 0.6, 0, 1)) * (1 - inOut(clamp((t - (seg.to - 0.75)) / 0.6, 0, 1))) : 0;
+  const zp = z ? inOut(clamp((t - (z.at ?? seg.from)) / 0.6, 0, 1)) * (1 - inOut(clamp((t - ((z.until ?? seg.to - 0.15) - 0.6)) / 0.6, 0, 1))) : 0;
   const scale = z ? 1 + (z.s - 1) * zp : 1;
   const angle = turn * 100;
   return (

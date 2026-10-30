@@ -20,8 +20,7 @@ export const T = {
   flow: 5.52, //    drums kick in: the timer hits 00:00 and the alarm plays
   forgot: 8.28,
   timeline: 11.03,
-  stats: 13.79, //  hi-hats drop out
-  stickers: 16.55,
+  stats: 13.79, //  hi-hats drop out; Stats runs two bars, flicking down through every chart
   montage: 19.31,
   free: 22.07, //   drums come back: the $0 tag flips
   why: 24.83,

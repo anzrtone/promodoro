@@ -11,7 +11,10 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { renderSound } from '../../src/audio/synth';
-import { CAPTIONS, SEGMENTS, TAG, WHY, lineTimes } from '../remotion/edit';
+import { CAPTIONS, SEGMENTS, STATS_FLICKS, STATS_RATE, TAG, WHY, lineTimes } from '../remotion/edit';
+import stats from '../footage/stats.json';
+
+const statsMarks = stats.marks as Record<string, number>;
 import { FLIP, MONTAGE, T, TURN } from '../remotion/timing';
 
 const SR = 48000;
@@ -120,7 +123,7 @@ function scribble(sec: number) {
 const tine = (freq: number, decay = 0.6, sec = 1.6) =>
   make(sec, (t) => (Math.sin(TAU * freq * t) * Math.exp(-t / decay) + 0.25 * Math.sin(TAU * freq * 2.76 * t) * Math.exp(-t / (decay * 0.3)) + 0.08 * Math.sin(TAU * freq * 5.4 * t) * Math.exp(-t / (decay * 0.12))) * Math.min(1, t / 0.002));
 
-/** A soft sticker pop: a round bubble with a quick pitch drop. */
+/** A soft pop: a round bubble with a quick pitch drop. */
 const popSound = () => {
   let ph = 0;
   return make(0.16, (t) => {
@@ -197,7 +200,7 @@ const flights: Array<[number, number, number]> = [
   [8.0, 8.45, 0.3],
   [10.8, 11.25, -0.3],
   [13.55, 14.0, 0.3],
-  [16.3, 16.75, -0.3],
+  [STATS_FLICKS - 0.35, STATS_FLICKS, 0.3],
   [MONTAGE[0], MONTAGE[0] + 0.22, 0.3],
   [MONTAGE[1], MONTAGE[1] + 0.22, -0.4], // off the left side to fetch the tag
   [TAG.in - 0.3, TAG.in, -0.2], // …and back in carrying it
@@ -234,7 +237,8 @@ for (const s of SEGMENTS.slice(1)) {
   mix(pageTurn(Math.max(0.22, len * 1.6)), s.from - len / 2, s.turn === FLIP ? 0.2 : 0.26, 0.2);
 }
 
-mix(popSound(), T.stickers + 0.35, 0.3, 0.2); // the sticker card pushes in
+// the Stats page flicking down through its charts: a soft paper swish on each flick
+for (const [k, at] of Object.entries(statsMarks)) if (k.startsWith('flick-')) mix(whoosh(0.28), T.stats + (at - 1.5) / STATS_RATE, 0.1, 0.2);
 MONTAGE.forEach((m, i) => mix(popSound(), m + 0.05, 0.14, i % 2 ? 0.25 : -0.25)); // montage words drop in
 
 // "price?" flies in with a whoosh as the padlock pops onto the page; the padlock rattles on the

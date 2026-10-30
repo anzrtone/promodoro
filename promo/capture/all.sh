@@ -3,6 +3,6 @@
 # Busy screens (stats, timeline, the share sheet) are filmed slower so no frames drop.
 set -euo pipefail
 cd "$(dirname "$0")"
-for s in countdown forgot stickers desktop idle; do node "shot-$s.mjs"; done
+for s in countdown forgot desktop idle; do node "shot-$s.mjs"; done
 for s in stats timeline montage; do RATE=0.125 node "shot-$s.mjs"; done
 ./sheets.sh

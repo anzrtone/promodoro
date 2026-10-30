@@ -8,7 +8,6 @@ import { FLIP, FPS, MONTAGE, SYNC, T } from './timing';
 import forgot from '../footage/forgot.json';
 import timeline from '../footage/timeline.json';
 import stats from '../footage/stats.json';
-import stickers from '../footage/stickers.json';
 
 const taps = (j: { taps: Tap[] }) => j.taps;
 
@@ -26,6 +25,10 @@ const ZERO = ZERO_FRAME / FPS;
  * On the Focus screen the origin sits low, so the push-in crops the app's own Pomo (y ≤ 300 in the
  * capture) out of view rather than enlarging it past the guide Pomo.
  */
+/** When the Stats page starts flicking down through its charts (composition seconds). */
+export const STATS_RATE = 1.1;
+export const STATS_FLICKS = T.stats + ((stats.marks as Record<string, number>)['flick-bars'] - 1.5) / STATS_RATE;
+
 export const SEGMENTS: Segment[] = [
   // Gentle Flow: the +00:01 timer and the overtime line
   { shot: 'countdown', from: 3.0, to: T.forgot, clip: 3.0 - SYNC.zero / FPS + ZERO, zoom: { ox: 0.5, oy: 0.95, s: 1.55, at: T.flow } },
@@ -33,10 +36,9 @@ export const SEGMENTS: Segment[] = [
   { shot: 'forgot', from: T.forgot, to: T.timeline, clip: 0.4, zoom: { ox: 0.5, oy: 0.8, s: 1.72 }, taps: taps(forgot) },
   // Honest history: the claimed gap
   { shot: 'timeline', from: T.timeline, to: T.stats, clip: 1.1, rate: 1.4, zoom: { ox: 0.5, oy: 0.24, s: 1.6 }, taps: taps(timeline) },
-  // Stats: the big total and the tiles (left column whole, the right one's figures)
-  { shot: 'stats', from: T.stats, to: T.stickers, clip: 1.45, rate: 1.12, zoom: { ox: 0.1, oy: 0.2, s: 1.5 }, taps: taps(stats) },
-  // No streaks: the "Rest counts" card, brought to the middle of the screen
-  { shot: 'stickers', from: T.stickers, to: T.montage, clip: 1.55, zoom: { ox: 1.155, oy: 0.64, s: 1.5 }, taps: taps(stickers) },
+  // Stats: the big total and the tiles through the range steps (left column whole, the right one's
+  // figures), then back out to full width as the page flicks down through every chart
+  { shot: 'stats', from: T.stats, to: T.montage, clip: 1.5, rate: STATS_RATE, zoom: { ox: 0.1, oy: 0.2, s: 1.5, until: STATS_FLICKS }, taps: taps(stats) },
   { shot: 'm-focusmode', from: MONTAGE[0], to: MONTAGE[1], clip: 1.6, turn: FLIP },
   { shot: 'm-subjects', from: MONTAGE[1], to: MONTAGE[2], clip: 1.25, turn: FLIP },
   { shot: 'm-share', from: MONTAGE[2], to: MONTAGE[3], clip: 1.45, turn: FLIP },
@@ -74,8 +76,7 @@ export const CAPTIONS: Caption[] = [
   { from: 5.6, to: 8.2, lines: ['Keep going', 'past zero.'] },
   { from: 8.36, to: 10.95, lines: ['Forgot to start?', 'Get it back.'] },
   { from: 11.11, to: 13.71, lines: ['No judgment.', 'Just your day.'] },
-  { from: 13.87, to: 16.47, lines: ['Watch your weeks', 'take shape.'] },
-  { from: 16.63, to: 19.23, lines: ['No streaks.', 'Just stickers.'] },
+  { from: T.stats + 0.08, to: T.montage - 0.08, lines: ['Watch your weeks', 'take shape.'] },
   { from: T.free, to: T.end - 0.15, write: 0.42, size: 116, lines: ['Every feature.', { text: 'Free forever.', mark: 'forever' }] },
   { from: T.end + 0.08, to: 34, x: END.x, y: END.caption, lines: ['Focus at', 'your own pace.'] },
 ];

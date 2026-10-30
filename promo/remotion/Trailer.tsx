@@ -9,7 +9,7 @@ import { PomoActor, type Stop } from './components/PomoActor';
 import { PhoneFrame, ScreenTrack } from './components/Phone';
 import { DesktopWindow, EndCard, HandCaption, MontageWords, NotebookBg, Padlock, PriceTag } from './components/Paper';
 import forgot from '../footage/forgot.json';
-import { CAPTIONS, END, SEGMENTS, TAG, WHY } from './edit';
+import { CAPTIONS, END, SEGMENTS, STATS_FLICKS, TAG, WHY } from './edit';
 
 /** Guide Pomo widths: opening 55 %, app beats 28 %, the $0 reveal 45 %, end card 35 % of the frame. */
 const S = { open: 600, app: 300, reveal: 486, end: 378 };
@@ -45,12 +45,11 @@ const POMO_PATH: Stop[] = [
   // Honest history: low on the left, under the gap it presents
   { t: 11.25, x: L, y: 1250, s: S.app, lean: 10, wr: 30 },
   { t: 13.55, x: L, y: 1250, s: S.app, lean: 10, wr: 30 },
-  // Stats: right edge, beside the big total
+  // Stats: right edge beside the big total, then low on the right while the charts flick past
   { t: 14.0, x: R, y: 700, s: S.app, lean: -10, wl: 40 },
-  { t: 16.3, x: R, y: 700, s: S.app, lean: -10, wl: 40 },
-  // No streaks: left edge, the card is pushed in on the right
-  { t: 16.75, x: L, y: 900, s: S.app, lean: 10, wr: 35 },
-  { t: 19.15, x: L, y: 900, s: S.app, lean: 10, wr: 35 },
+  { t: STATS_FLICKS - 0.35, x: R, y: 700, s: S.app, lean: -10, wl: 40 },
+  { t: STATS_FLICKS, x: R, y: 1380, s: S.app, lean: -6 },
+  { t: 19.15, x: R, y: 1380, s: S.app, lean: -6 },
   // the montage: a new edge on every beat
   { t: MONTAGE[0] + 0.22, x: R, y: 700, s: S.app, lean: -8, e: out },
   { t: MONTAGE[1], x: R, y: 710, s: S.app, lean: -8 },
@@ -75,7 +74,6 @@ const MOODS: Array<[number, import('@/components/Pomo').PomoMood]> = [
   [T.forgot, 'puzzled'],
   [T.forgot + (forgot.taps[1].t - 0.4) + 0.05, 'happy'],
   [T.stats, 'cheering'],
-  [T.stickers, 'shy'],
   [MONTAGE[0], 'happy'],
   [MONTAGE[1], 'cheering'],
   [TAG_IN, 'happy'],
