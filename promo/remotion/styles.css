@@ -1,0 +1,32 @@
+/* The app's own fonts (Fontsource, from the repo's node_modules) and colour tokens. */
+@import '../../node_modules/@fontsource/fredoka/latin-600.css';
+@import '../../node_modules/@fontsource/nunito/latin-400.css';
+@import '../../node_modules/@fontsource/nunito/latin-700.css';
+@import '../../node_modules/@fontsource/patrick-hand/latin-400.css';
+
+@tailwind base;
+@tailwind utilities;
+
+:root {
+  --pm-creme: 253 251 247;
+  --pm-paper: 245 239 224;
+  --pm-tomato: 238 107 110;
+  --pm-leaf: 82 183 136;
+  --pm-halo: 255 232 147;
+  --pm-margin: 244 162 162;
+  --pm-rule: 229 223 209;
+  --pm-ink: 45 49 46;
+  --pm-sheet: 255 254 251;
+}
+
+/* Frame-accurate CSS animation: everything paused, then seeked per frame (anim.tsx). */
+.trailer *,
+.trailer *::before,
+.trailer *::after {
+  animation-play-state: paused !important;
+}
+
+/* The halo can drop into place: `translate` stacks on top of the halo's own bob transform. */
+.pomo-actor .animate-halo {
+  translate: 0 var(--halo-drop, 0px);
+}
