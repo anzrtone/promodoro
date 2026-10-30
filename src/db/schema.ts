@@ -10,7 +10,7 @@
  *  presets / boards (subjects) / folders / tasks / notes / stickers / settings
  */
 import Dexie, { type Table } from 'dexie';
-import { PREVIEW_DB, previewOn } from '@/dev/flag';
+import { PREVIEW_DB, PROMO_DB, previewOn, promoOn } from '@/dev/flag';
 import type { AnyEvent, Board, DailySummary, Folder, Note, Preset, Session, Sticker, Task, TimerState } from '@/engine/types';
 
 export interface KV<T = unknown> {
@@ -121,8 +121,8 @@ export class PromodoroDB extends Dexie {
   }
 }
 
-/** In dev, the preview-account switch (src/dev) opens a separate pre-filled database instead. */
-export const db = previewOn() ? new PromodoroDB(PREVIEW_DB) : new PromodoroDB();
+/** In dev, the preview-account switch and the trailer's filming mode (src/dev) open separate pre-filled databases instead. */
+export const db = promoOn() ? new PromodoroDB(PROMO_DB) : previewOn() ? new PromodoroDB(PREVIEW_DB) : new PromodoroDB();
 
 /** Ask the WebView not to evict our IndexedDB under storage pressure. */
 export async function requestPersistence(): Promise<boolean> {

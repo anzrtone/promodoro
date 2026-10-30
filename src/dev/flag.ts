@@ -16,6 +16,17 @@ export function previewOn(): boolean {
   }
 }
 
+export const PROMO_DB = 'promodoro-promo';
+
+/**
+ * `?promo=1`: the filming mode for the trailer. A fresh, pre-filled notebook in its own database on
+ * every load, with the dev panel and every network call left out so recordings come out clean.
+ */
+export function promoOn(): boolean {
+  if (!import.meta.env.DEV) return false;
+  return new URLSearchParams(location.search).get('promo') === '1';
+}
+
 export function setPreview(on: boolean): void {
   if (!import.meta.env.DEV) return;
   try {

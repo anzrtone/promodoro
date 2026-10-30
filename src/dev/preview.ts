@@ -44,7 +44,7 @@ function pickBoard(i: number): string {
   return BOARDS[0].id;
 }
 
-export async function seedPreview(): Promise<void> {
+export async function seedPreview(name = 'Preview'): Promise<void> {
   const data = buildDemo(today(), BOARDS);
   const sessions: Session[] = data.sessions.map((s, i) => ({ ...s, id: s.id.replace('demo-', 'pv-'), boardId: s.phase === 'focus' ? pickBoard(i) : undefined }));
 
@@ -78,7 +78,7 @@ export async function seedPreview(): Promise<void> {
     await db.settings.put({ key: SEEDED, value: Date.now() });
   });
   await fillStickers();
-  await updateSettings({ onboarded: true, boardId: BOARDS[0].id, profile: { name: 'Preview' }, pingEnabled: false, updateCheck: false, syncTourSeen: true, lastSeenVersion: currentVersion(), presetId: DEFAULT_PRESETS[0].id, dailyGoalMs: 2 * HOUR });
+  await updateSettings({ onboarded: true, boardId: BOARDS[0].id, profile: { name }, pingEnabled: false, updateCheck: false, syncTourSeen: true, lastSeenVersion: currentVersion(), presetId: DEFAULT_PRESETS[0].id, dailyGoalMs: 2 * HOUR });
 }
 
 /** Empty the preview notebook (it is its own database, so the real one is never touched). */
@@ -90,6 +90,13 @@ export async function wipePreview(): Promise<void> {
 async function fillStickers(): Promise<void> {
   const earnedAt = Date.now();
   await db.stickers.bulkPut(STICKERS.map((s) => ({ id: s.id, earnedAt, seen: true })));
+}
+
+/** Filming mode: start from the same notebook on every load, so every take of a shot matches. */
+export async function seedPromo(): Promise<void> {
+  await db.delete();
+  await db.open();
+  await seedPreview('Sam');
 }
 
 export async function ensurePreviewSeeded(): Promise<void> {

@@ -11,13 +11,17 @@ import { startAutoBackupLoop } from '@/features/autoBackup';
 import { unlockAudio } from '@/audio/engine';
 import { syncSurvey } from '@/features/survey';
 import { clearLeftoverDemo } from '@/features/demo';
-import { previewOn } from '@/dev/flag';
+import { previewOn, promoOn } from '@/dev/flag';
 import { sendPing } from '@/features/ping';
 import { startAutoSyncLoop } from '@/sync';
 
 async function boot() {
   await loadPlatform();
-  if (previewOn()) {
+  const promo = promoOn();
+  if (promo) {
+    const { seedPromo } = await import('@/dev/preview');
+    await seedPromo();
+  } else if (previewOn()) {
     const { ensurePreviewSeeded } = await import('@/dev/preview');
     await ensurePreviewSeeded();
   }
@@ -26,12 +30,14 @@ async function boot() {
   await loadSettings();
   void requestPersistence();
   await engine.start();
-  startAutoBackupLoop();
-  void syncSurvey();
-  void clearLeftoverDemo();
-  void sendPing();
-  startAutoSyncLoop();
-  if (import.meta.env.DEV) {
+  if (!promo) {
+    startAutoBackupLoop();
+    void syncSurvey();
+    void clearLeftoverDemo();
+    void sendPing();
+    startAutoSyncLoop();
+  }
+  if (import.meta.env.DEV && !promo) {
     const { seedDemoData } = await import('@/dev/seed');
     Object.assign(window, { promodoroSeed: seedDemoData });
     void mountDevPanel();
