@@ -1,9 +1,9 @@
 """Guide click for previews only (never in the final file): a soft click every beat (87 BPM), an
-accent on every bar, and a bell on each sync point. 48 kHz stereo, exactly 30.0 s.
+accent on every bar, and a bell on each sync point. 48 kHz stereo, exactly 33.0 s.
 Usage: python3 audio/guide-click.py audio/guide-click.wav"""
 import math, struct, sys, wave
 
-SR, DUR = 48000, 30.0
+SR, DUR = 48000, 33.0
 BEAT = 60 / 87
 SYNC = [5.52, 13.79, 22.07, 28.97]
 n = int(SR * DUR)

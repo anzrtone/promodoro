@@ -28,6 +28,8 @@ export interface PomoActorProps {
   moods: Array<[t: number, mood: PomoMood]>;
   /** A wave with the screen-right wing over [from, to] seconds. */
   wave?: [number, number];
+  /** From this time (s) Pomo stops drifting sideways (it still bobs). */
+  steadyFrom?: number;
   /** Halo drop offset (px, in Pomo's 200-unit space), for the "halo drops into place" entrance. */
   haloDrop?: Key[];
   /** Hung under Pomo (the price tag): rendered in Pomo's moving frame. */
@@ -37,7 +39,7 @@ export interface PomoActorProps {
 
 const keys = (path: Stop[], pick: (s: Stop) => number): Key[] => path.map((s) => [s.t, pick(s), s.e]);
 
-export function pomoAt(path: Stop[], frame: number) {
+export function pomoAt(path: Stop[], frame: number, steadyFrom = Infinity) {
   const x = track(frame, keys(path, (s) => s.x));
   const y = track(frame, keys(path, (s) => s.y));
   const s = track(frame, keys(path, (s) => s.s));
@@ -47,15 +49,16 @@ export function pomoAt(path: Stop[], frame: number) {
   const bank = clamp(vx * 0.55, -16, 16);
   // A slow idle float on top of Pomo's own bob, so a hovering Pomo never looks pinned.
   const t = frame / FPS;
-  const fx = Math.sin(t * 1.3) * 5;
+  // (From `steadyFrom` the sideways drift settles out, so a centred Pomo stays centred.)
+  const fx = Math.sin(t * 1.3) * 5 * (1 - clamp((t - steadyFrom) / 0.5, 0, 1));
   const fy = Math.sin(t * 2.1 + 1) * 7;
   return { x: x + fx, y: y + fy, s, tilt: bank + lean };
 }
 
-export function PomoActor({ path, moods, wave, haloDrop, carry, style }: PomoActorProps) {
+export function PomoActor({ path, moods, wave, steadyFrom, haloDrop, carry, style }: PomoActorProps) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
-  const { x, y, s, tilt } = pomoAt(path, frame);
+  const { x, y, s, tilt } = pomoAt(path, frame, steadyFrom);
   let mood: PomoMood = moods[0][1];
   let since = -1;
   for (const [mt, m] of moods)

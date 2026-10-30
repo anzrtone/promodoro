@@ -1,4 +1,4 @@
-# Promodoro trailer (30 s, 9:16)
+# Promodoro trailer (33 s, 9:16)
 
 Pomo, the real `src/components/Pomo.tsx`, tours the real app. Everything lives here so the app's own
 dependencies stay untouched. **No music in the repo**: the video is rendered with SFX only and cut to
@@ -9,7 +9,7 @@ npm ci                 # here, in promo/ (the repo root needs its own `npm ci` t
 npm run dev            # in the repo root: the app on :1420, for capturing
 npm run capture        # Playwright → footage/<shot>.mp4 + .json, contact sheets in footage/sheets/
 npm run animatic       # review sheet → out/animatic.png
-npm run sfx            # SFX stem → out/sfx.wav (48 kHz stereo, 30.0 s)
+npm run sfx            # SFX stem → out/sfx.wav (48 kHz stereo, 33.0 s)
 npm run render         # → out/promodoro-trailer-9x16.mp4, out/preview-with-click.mp4, sheets
 ```
 
@@ -19,8 +19,13 @@ npm run render         # → out/promodoro-trailer-9x16.mp4, out/preview-with-cl
 - **Compose** (`remotion/`): `timing.ts` is the grid, `edit.ts` the clips and captions, `Trailer.tsx`
   the choreography. CSS animations are paused and seeked per frame (`anim.tsx`), so renders are
   frame-accurate and repeatable.
+- **Length**: 33.0 s, 1980 frames at 60 fps. The wordmark stamps on 28.97 s and the end card holds
+  (Pomo still bobbing) while the music rings out on its own, silent by about 32.6 s.
 - **Sync points**: 00:00 on frame 331 (5.52 s), the $0 tag turning on 1324 (22.07 s), the wordmark
   landing on 1738 (28.97 s). If the countdown is re-recorded, re-measure `ZERO_FRAME` in `edit.ts`.
-- **SFX** (`audio/render-sfx.ts`): the app's own synth (the real "Tomato timer" alarm at 00:00, the
-  glockenspiel under the $0) plus procedural flutters, taps, page turns, pen and the logo chord.
+- **End card**: every element centred on x = 540 and the group centred in y 0–1536; check with
+  `python3 remotion/measure_end.py out/frames/f1979.png out/frames/f1738.png`.
+- **SFX** (`audio/render-sfx.ts`): the app's own synth (its "Desk bell" alarm at 00:00, the
+  glockenspiel under the $0) plus procedural flutters, taps, page turns, pen, the padlock's rattles
+  and click, and the logo chord, which fades out by itself by 32.6 s.
   `audio/guide-click.wav` is for previews only.

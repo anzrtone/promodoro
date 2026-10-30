@@ -9,5 +9,5 @@ export const BEATS = [
   { name: 'Montage', from: 19.31, to: 22.07, caption: 'Focus · Tasks · Share · Sync' },
   { name: 'Free forever: reveal', from: 22.07, to: 24.83, caption: 'Every feature. Free forever.' },
   { name: 'Free forever: why', from: 24.83, to: 27.59, caption: 'No account. No trial. Made for students on a budget.' },
-  { name: 'End card', from: 27.59, to: 30, caption: 'Focus at your own pace.' },
+  { name: 'End card', from: 27.59, to: 33, caption: 'Focus at your own pace.' },
 ];

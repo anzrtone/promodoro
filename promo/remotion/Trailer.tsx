@@ -1,5 +1,6 @@
 /**
- * Promodoro, 30 s, 9:16. Pomo gives a tour of the real app, cut to the 87 BPM grid in timing.ts.
+ * Promodoro, 33 s, 9:16. Pomo gives a tour of the real app, cut to the 87 BPM grid in timing.ts.
+ * (The picture ends on the stamp at 28.97 s and the end card holds while the music rings out.)
  */
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { clamp, CssAnimationClock, inOut, inQuad, out, pop, prog } from './anim';
@@ -8,7 +9,7 @@ import { PomoActor, type Stop } from './components/PomoActor';
 import { PhoneFrame, ScreenTrack } from './components/Phone';
 import { DesktopWindow, EndCard, HandCaption, MontageWords, NotebookBg, Padlock, PriceTag } from './components/Paper';
 import forgot from '../footage/forgot.json';
-import { CAPTIONS, SEGMENTS, WHY } from './edit';
+import { CAPTIONS, END, SEGMENTS, TAG, WHY } from './edit';
 
 /** Guide Pomo widths: opening 55 %, app beats 28 %, the $0 reveal 45 %, end card 35 % of the frame. */
 const S = { open: 600, app: 300, reveal: 486, end: 378 };
@@ -21,6 +22,11 @@ const R = 795; // …or its right edge (stays left of the right-hand safe zone)
  * (Pomo's body centre is 7 % of its size below the middle of its box).
  */
 const COVER = { x: 520, y: 822 - 0.07 * S.reveal };
+
+/** While it carries "price?" (see TAG in edit.ts), Pomo hovers below the montage words. */
+const TAG_IN = TAG.in;
+const OPEN = TAG.open;
+const HOVER = { x: 520, y: 640, s: 340 };
 
 const POMO_PATH: Stop[] = [
   // in from off-screen, settling a little above the middle
@@ -48,17 +54,18 @@ const POMO_PATH: Stop[] = [
   // the montage: a new edge on every beat
   { t: MONTAGE[0] + 0.22, x: R, y: 700, s: S.app, lean: -8, e: out },
   { t: MONTAGE[1], x: R, y: 710, s: S.app, lean: -8 },
-  { t: MONTAGE[1] + 0.22, x: L, y: 950, s: S.app, lean: 8, e: out },
-  { t: MONTAGE[2], x: L, y: 960, s: S.app, lean: 8 },
-  { t: MONTAGE[2] + 0.22, x: R, y: 1150, s: S.app, lean: -8, e: out },
-  { t: MONTAGE[3], x: R, y: 1160, s: S.app, lean: -8 },
-  { t: MONTAGE[3] + 0.22, x: L, y: 720, s: S.app, lean: 8, e: out },
+  // …then off the left side to fetch the price tag, and back in with it on the third beat, so
+  // "price?" hangs on screen for a good while before it turns over on the hit
+  { t: MONTAGE[1] + 0.22, x: -260, y: 820, s: S.app, lean: 8, e: inQuad },
+  { t: TAG_IN - 0.3, x: -260, y: 700, s: HOVER.s },
+  { t: TAG_IN, x: HOVER.x, y: HOVER.y, s: HOVER.s, e: out },
+  { t: OPEN, x: HOVER.x, y: HOVER.y + 10, s: HOVER.s },
   // up over the app's own Pomo with the price tag, arriving just before the hit
   { t: 22.02, x: COVER.x, y: COVER.y, s: S.reveal, e: out },
   { t: T.end, x: COVER.x, y: COVER.y, s: S.reveal },
-  // centred above the wordmark
-  { t: 28.1, x: 480, y: 640, s: S.end },
-  { t: 30, x: 480, y: 640, s: S.end },
+  // centred above the wordmark (on its body circle: x is the body's centre)
+  { t: 28.1, x: END.x, y: END.pomo, s: S.end },
+  { t: 33, x: END.x, y: END.pomo, s: S.end },
 ];
 
 const MOODS: Array<[number, import('@/components/Pomo').PomoMood]> = [
@@ -71,8 +78,8 @@ const MOODS: Array<[number, import('@/components/Pomo').PomoMood]> = [
   [T.stickers, 'shy'],
   [MONTAGE[0], 'happy'],
   [MONTAGE[1], 'cheering'],
-  [MONTAGE[2], 'happy'],
-  [MONTAGE[3], 'cheering'],
+  [TAG_IN, 'happy'],
+  [T.free - 0.05, 'cheering'],
   [T.why, 'shy'],
   [T.end, 'cheering'],
 ];
@@ -89,10 +96,12 @@ export function Trailer() {
   const enter = prog(frame, 3.0, 3.75, pop);
   const flank = prog(frame, T.end, T.end + 0.5, inOut);
   const exit = prog(frame, T.stamp, T.stamp + 0.35, inQuad);
-  const phoneX = PHONE.cx + (175 - PHONE.cx) * flank - 600 * exit;
-  const phoneY = PHONE.cy + (1 - enter) * 1500 + (1080 - PHONE.cy) * flank;
+  const phoneX = PHONE.cx + (END.x - 365 - PHONE.cx) * flank - 600 * exit;
+  const phoneY = PHONE.cy + (1 - enter) * 1500 + (END.wordmark + 80 - PHONE.cy) * flank;
   // fully blurred and dimmed by the time the tag turns on the hit
   const under = clamp(prog(frame, T.free - 0.45, T.free - 0.05) - prog(frame, T.end, T.end + 0.35), 0, 1);
+  // the last two montage pages keep flipping behind the tag and the padlock, a little dimmed
+  const montageDim = 0.22 * prog(frame, TAG_IN - 0.3, TAG_IN);
 
   return (
     <AbsoluteFill className="trailer" style={{ background: '#FDFBF7' }}>
@@ -101,14 +110,14 @@ export function Trailer() {
         <NotebookBg drift={t * 7} />
 
         {t > 2.95 && t < T.stamp + 0.4 && (
-          <PhoneFrame x={phoneX} y={phoneY} scale={1 - 0.55 * flank} rotate={-5 * (1 - enter) - 6 * flank} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={under * 0.55} blur={under * 14}>
+          <PhoneFrame x={phoneX} y={phoneY} scale={1 - 0.55 * flank} rotate={-5 * (1 - enter) - 6 * flank} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={Math.max(under * 0.55, montageDim)} blur={under * 14}>
             <ScreenTrack segments={SEGMENTS} />
           </PhoneFrame>
         )}
 
-        {t > T.end - 0.05 && t < T.stamp + 0.4 && <DesktopWindow shot="desktop" from={T.end - 0.05} x={790 + (1 - flank) * 650 + 700 * exit} y={1060} width={300} rotate={6} />}
+        {t > T.end - 0.05 && t < T.stamp + 0.4 && <DesktopWindow shot="desktop" from={T.end - 0.05} x={END.x + 250 + (1 - flank) * 650 + 700 * exit} y={END.wordmark + 60} width={300} rotate={6} />}
 
-        <Padlock x={150} y={1180} show={T.free - 0.52} open={T.free - 0.22} burst={T.free} />
+        <Padlock x={150} y={1180} show={TAG_IN - 0.3} popIn={0.3} rattles={TAG.rattles} open={OPEN} burst={T.free} />
 
         {/* the why note: a sticky note taped to the page */}
         <WhyNote />
@@ -117,6 +126,7 @@ export function Trailer() {
           path={POMO_PATH}
           moods={MOODS}
           wave={[1.5, 2.5]}
+          steadyFrom={T.end + 0.5}
           haloDrop={[
             [0, -150],
             [0.45, -150],
@@ -124,7 +134,7 @@ export function Trailer() {
           ]}
           // Held close under Pomo (the tag's point tucked behind its body): the paper covers the app's
           // timer behind it completely.
-          carry={({ x, y, s, tilt }) => <PriceTag x={x} y={y + s * 0.2} string={12} tilt={tilt} flip={T.free} show={[T.free - 0.35, T.end - 0.1]} />}
+          carry={({ x, y, s, tilt }) => <PriceTag x={x} y={y + s * 0.2} string={12} tilt={tilt} flip={T.free} show={[TAG_IN - 0.32, T.end - 0.1]} popIn={0.05} />}
         />
 
         {/* captions, top third (the montage words take the caption spot on their beat) */}
@@ -133,7 +143,7 @@ export function Trailer() {
         ))}
         <MontageWords beats={MONTAGE} until={T.free - 0.15} />
 
-        <EndCard stamp={T.stamp} x={480} y={1000} />
+        <EndCard stamp={T.stamp} x={END.x} y={END.wordmark} />
       </div>
     </AbsoluteFill>
   );

@@ -5,7 +5,8 @@
 export const FPS = 60;
 export const W = 1080;
 export const H = 1920;
-export const DURATION = 1800; // exactly 30.0 s
+/** 33.0 s: the end card holds after the stamp so the music can ring out (silent by about 32.6 s). */
+export const DURATION = 1980;
 
 export const BEAT = 60 / 87;
 export const BAR = BEAT * 4;
@@ -30,7 +31,7 @@ export const T = {
 
 export const SYNC = { zero: fr(T.flow), flip: fr(T.free), stamp: fr(T.stamp) };
 
-export const BARS = Array.from({ length: 11 }, (_, i) => +(i * BAR).toFixed(2));
+export const BARS = Array.from({ length: 12 }, (_, i) => +(i * BAR).toFixed(2));
 
 /** Page-turn length between features (frames), and the quicker flips in the montage. */
 export const TURN = 18;

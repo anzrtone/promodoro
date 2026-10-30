@@ -45,7 +45,22 @@ export const SEGMENTS: Segment[] = [
 ];
 
 
+/**
+ * The end card's layout: every element centred on x = 540, and the group (caption, Pomo, wordmark,
+ * small print) centred vertically in the frame above the bottom safe zone (y 0–1536).
+ */
+const DY = 81; // measured: the group spanned y 170–1204 (centre 687); the middle of 0–1536 is 768
+export const END = { x: 540, caption: 150 + DY, pomo: 640 + DY, wordmark: 1000 + DY };
+
+/**
+ * "price?" and the padlock arrive together on the third montage beat, about 1.4 s before the $0
+ * flip: the padlock rattles on the next beats, its shackle springs open at `open`, and it bursts on
+ * the hit. `rattles` are [seconds, strength in degrees].
+ */
+export const TAG = { in: MONTAGE[2], open: 21.85, rattles: [[MONTAGE[3], 5], [21.72, 11]] as Array<[number, number]> };
+
 export interface Caption {
+  x?: number;
   from: number;
   to: number;
   lines: Array<string | CaptionLine>;
@@ -62,7 +77,7 @@ export const CAPTIONS: Caption[] = [
   { from: 13.87, to: 16.47, lines: ['Watch your weeks', 'take shape.'] },
   { from: 16.63, to: 19.23, lines: ['No streaks.', 'Just stickers.'] },
   { from: T.free, to: T.end - 0.15, write: 0.42, size: 116, lines: ['Every feature.', { text: 'Free forever.', mark: 'forever' }] },
-  { from: T.end + 0.08, to: 31, lines: ['Focus at', 'your own pace.'] },
+  { from: T.end + 0.08, to: 34, x: END.x, y: END.caption, lines: ['Focus at', 'your own pace.'] },
 ];
 
 /** The "why" lines, on the sticky note. */

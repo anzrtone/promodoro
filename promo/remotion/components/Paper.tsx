@@ -8,6 +8,7 @@ import { clamp, inQuad, out, pop, prog } from '../anim';
 import { FPS, fr, W } from '../timing';
 
 const INK = 'rgb(45 49 46)';
+const TAU = Math.PI * 2;
 
 /** The app's .bg-notebook: crème, a sand rule every line, a pink margin rule, plus light paper grain. */
 export function NotebookBg({ drift = 0 }: { drift?: number }) {
@@ -142,11 +143,11 @@ export const SPARKLE = 'M0 -8 C1 -2 2 -1 8 0 C2 1 1 2 0 8 C-1 2 -2 1 -8 0 C-2 -1
  * A handwritten paper price tag hanging on a string under Pomo. It turns over in 3D around the
  * hit at `flip` (seconds), from "price?" to "$0". (x, y) is where the string is tied.
  */
-export function PriceTag({ x, y, tilt, flip, show, string = 70 }: { x: number; y: number; tilt: number; flip: number; show: [number, number]; string?: number }) {
+export function PriceTag({ x, y, tilt, flip, show, string = 70, popIn = 0.45 }: { x: number; y: number; tilt: number; flip: number; show: [number, number]; string?: number; popIn?: number }) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   if (t < show[0] || t > show[1] + 0.3) return null;
-  const appear = pop(clamp((t - show[0]) / 0.45, 0, 1));
+  const appear = pop(clamp((t - show[0]) / popIn, 0, 1));
   const leave = clamp((t - show[1]) / 0.25, 0, 1);
   // The turn starts 6 frames before the hit, so the hit frame shows it mid-turn with $0 coming round.
   const fp = clamp((frame - (fr(flip) - 6)) / 26, 0, 1);
@@ -178,19 +179,24 @@ export function PriceTag({ x, y, tilt, flip, show, string = 70 }: { x: number; y
   );
 }
 
-/** A small doodled padlock that springs open and bursts into Pomo-style sparkles. */
-export function Padlock({ x, y, show, open, burst, size = 2 }: { x: number; y: number; show: number; open: number; burst: number; size?: number }) {
+/**
+ * A doodled padlock: pops in, rattles on each beat as if something is trying to get out, springs
+ * its shackle open, then bursts into Pomo-style sparkles. `rattles` are [seconds, strength in deg].
+ */
+export function Padlock({ x, y, show, open, burst, size = 2, popIn = 0.4, rattles = [] }: { x: number; y: number; show: number; open: number; burst: number; size?: number; popIn?: number; rattles?: Array<[number, number]> }) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   if (t < show) return null;
-  const appear = pop(clamp((t - show) / 0.4, 0, 1));
+  const appear = pop(clamp((t - show) / popIn, 0, 1));
+  let shake = 0;
+  for (const [at, deg] of rattles) if (t >= at) shake += deg * Math.sin((t - at) * TAU * 11) * Math.exp(-(t - at) / 0.13);
   const lift = pop(clamp((t - open) / 0.25, 0, 1));
   const b = clamp((t - burst) / 0.9, 0, 1);
   const lockGone = clamp((t - burst) / 0.12, 0, 1);
   const N = 10;
   return (
-    <div style={{ position: 'absolute', left: x, top: y }}>
-      <svg width={160} height={180} viewBox="-80 -100 160 180" style={{ position: 'absolute', left: -80, top: -100, overflow: 'visible', opacity: 1 - lockGone, transform: `scale(${size * appear * (1 + lockGone * 0.5)}) rotate(-6deg)` }}>
+    <div style={{ position: 'absolute', left: x + shake * 0.6, top: y - Math.abs(shake) * 0.4 }}>
+      <svg width={160} height={180} viewBox="-80 -100 160 180" style={{ position: 'absolute', left: -80, top: -100, overflow: 'visible', opacity: 1 - lockGone, transform: `scale(${size * appear * (1 + lockGone * 0.5)}) rotate(${-6 + shake}deg)` }}>
         <g fill="none" stroke={INK} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round">
           <path d="M-24 -10 C-25 -46 25 -48 24 -12" transform={`translate(${lift * 10} ${-lift * 22}) rotate(${lift * 24} 24 -12)`} />
           <path d="M-40 -12 C-14 -15 18 -13 41 -10 C43 14 42 38 39 56 C14 59 -14 58 -39 55 C-42 30 -42 8 -40 -12Z" fill="#F5EFE0" />
@@ -246,7 +252,7 @@ export function EndCard({ stamp, x = 480, y = 1000 }: { stamp: number; x?: numbe
   const squashY = fall < 1 ? 1 : 1 - Math.sin(Math.min(1, after / 0.18) * Math.PI) * 0.06;
   const small = prog(frame, stamp + 0.12, stamp + 0.42, out);
   const ink = clamp(after / 0.5, 0, 1);
-  const WORD = 174;
+  const WORD = 162; // Fredoka 600 "Promodoro" ≈ 4.94 em wide: 800 px
   return (
     <>
       {fall >= 1 && (
