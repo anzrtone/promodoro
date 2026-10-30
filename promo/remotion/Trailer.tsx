@@ -27,10 +27,11 @@ const POMO_PATH: Stop[] = [
   { t: 0, x: -330, y: 700, s: S.open },
   { t: 0.42, x: 540, y: 850, s: S.open, e: pop },
   { t: 3.0, x: 540, y: 850, s: S.open },
-  // to the phone's edge as it rises: pointing at the app's own Pomo
-  { t: 3.75, x: L, y: 700, s: S.app, lean: 8, wr: 50 },
-  { t: 8.0, x: L, y: 710, s: S.app, lean: 8, wr: 50 },
-  // Get time back: right edge (the chips are central), a point back at the app's Pomo before the push-in hides it
+  // to the phone's edge as it rises, low (the push-in brings the timer up): pointing up at the app's
+  // own Pomo, then at the timer
+  { t: 3.75, x: L, y: 1250, s: S.app, lean: 8, wr: 50 },
+  { t: 8.0, x: L, y: 1250, s: S.app, lean: 8, wr: 50 },
+  // Get time back: right edge (the chips are central), a point back at the app's Pomo before the push-in crops it out
   { t: 8.45, x: R, y: 800, s: S.app, lean: -8, wl: 45 },
   { t: 8.85, x: R, y: 800, s: S.app, lean: -8, wl: 45 },
   { t: 9.2, x: R, y: 810, s: S.app, lean: -4 },
@@ -90,7 +91,8 @@ export function Trailer() {
   const exit = prog(frame, T.stamp, T.stamp + 0.35, inQuad);
   const phoneX = PHONE.cx + (175 - PHONE.cx) * flank - 600 * exit;
   const phoneY = PHONE.cy + (1 - enter) * 1500 + (1080 - PHONE.cy) * flank;
-  const under = clamp(prog(frame, T.free - 0.17, T.free + 0.23) - prog(frame, T.end, T.end + 0.35), 0, 1);
+  // fully blurred and dimmed by the time the tag turns on the hit
+  const under = clamp(prog(frame, T.free - 0.45, T.free - 0.05) - prog(frame, T.end, T.end + 0.35), 0, 1);
 
   return (
     <AbsoluteFill className="trailer" style={{ background: '#FDFBF7' }}>
@@ -99,7 +101,7 @@ export function Trailer() {
         <NotebookBg drift={t * 7} />
 
         {t > 2.95 && t < T.stamp + 0.4 && (
-          <PhoneFrame x={phoneX} y={phoneY} scale={1 - 0.55 * flank} rotate={-5 * (1 - enter) - 6 * flank} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={under * 0.55} blur={under * 6}>
+          <PhoneFrame x={phoneX} y={phoneY} scale={1 - 0.55 * flank} rotate={-5 * (1 - enter) - 6 * flank} rotX={2 + Math.sin(t * 0.5) * 1.2} rotY={Math.sin(t * 0.6) * 3.5} dim={under * 0.55} blur={under * 14}>
             <ScreenTrack segments={SEGMENTS} />
           </PhoneFrame>
         )}
@@ -120,7 +122,9 @@ export function Trailer() {
             [0.45, -150],
             [0.8, 0, pop],
           ]}
-          carry={({ x, y, s, tilt }) => <PriceTag x={x} y={y + s * 0.34} tilt={tilt} flip={T.free} show={[T.free - 0.35, T.end - 0.1]} />}
+          // Held close under Pomo (the tag's point tucked behind its body): the paper covers the app's
+          // timer behind it completely.
+          carry={({ x, y, s, tilt }) => <PriceTag x={x} y={y + s * 0.2} string={12} tilt={tilt} flip={T.free} show={[T.free - 0.35, T.end - 0.1]} />}
         />
 
         {/* captions, top third (the montage words take the caption spot on their beat) */}

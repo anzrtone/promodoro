@@ -142,7 +142,7 @@ export const SPARKLE = 'M0 -8 C1 -2 2 -1 8 0 C2 1 1 2 0 8 C-1 2 -2 1 -8 0 C-2 -1
  * A handwritten paper price tag hanging on a string under Pomo. It turns over in 3D around the
  * hit at `flip` (seconds), from "price?" to "$0". (x, y) is where the string is tied.
  */
-export function PriceTag({ x, y, tilt, flip, show }: { x: number; y: number; tilt: number; flip: number; show: [number, number] }) {
+export function PriceTag({ x, y, tilt, flip, show, string = 70 }: { x: number; y: number; tilt: number; flip: number; show: [number, number]; string?: number }) {
   const frame = useCurrentFrame();
   const t = frame / FPS;
   if (t < show[0] || t > show[1] + 0.3) return null;
@@ -154,7 +154,7 @@ export function PriceTag({ x, y, tilt, flip, show }: { x: number; y: number; til
   const swing = Math.sin(t * 2.4) * 3 + Math.sin(fp * Math.PI) * 7 - tilt * 0.5;
   const TW = 340;
   const TH = 260;
-  const STRING = 70;
+  const STRING = string;
   const face = (children: ReactNode, back = false): ReactNode => (
     <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: back ? 'rotateY(180deg)' : undefined }}>
       <svg width={TW} height={TH} viewBox={`0 0 ${TW} ${TH}`} style={{ position: 'absolute', inset: 0, overflow: 'visible' }}>

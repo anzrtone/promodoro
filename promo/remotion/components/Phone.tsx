@@ -65,7 +65,7 @@ export function PhoneFrame({ x = PHONE.cx, y = PHONE.cy, scale = 1, rotate = 0, 
           <div style={{ position: 'absolute', inset: 0, filter: blur > 0 ? `blur(${blur}px)` : undefined }}>{children}</div>
           {/* punch-hole camera */}
           <div style={{ position: 'absolute', top: 14, left: '50%', width: 20, height: 20, marginLeft: -10, borderRadius: 99, background: '#1F2220', boxShadow: 'inset 0 0 0 3px #2D312E' }} />
-          {dim > 0 && <div style={{ position: 'absolute', inset: 0, background: `rgb(45 49 46 / ${dim * 0.5})` }} />}
+          {dim > 0 && <div style={{ position: 'absolute', inset: 0, background: `rgb(45 49 46 / ${dim})` }} />}
           {/* a faint glass sheen */}
           <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(125deg, rgb(255 255 255 / 0.10), transparent 35%)', pointerEvents: 'none' }} />
         </div>

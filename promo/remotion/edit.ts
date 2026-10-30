@@ -23,12 +23,14 @@ const ZERO = ZERO_FRAME / FPS;
 /*
  * Push-ins (zoom.s) are set so the focal UI's text reads at about 32 px or more in the frame: the
  * screen shows the 412-px-wide capture at 1.43×, so 13 px chips need 1.72×, 16 px text 1.4×.
+ * On the Focus screen the origin sits low, so the push-in crops the app's own Pomo (y ≤ 300 in the
+ * capture) out of view rather than enlarging it past the guide Pomo.
  */
 export const SEGMENTS: Segment[] = [
   // Gentle Flow: the +00:01 timer and the overtime line
-  { shot: 'countdown', from: 3.0, to: T.forgot, clip: 3.0 - SYNC.zero / FPS + ZERO, zoom: { ox: 0.5, oy: 0.43, s: 1.55, at: T.flow } },
+  { shot: 'countdown', from: 3.0, to: T.forgot, clip: 3.0 - SYNC.zero / FPS + ZERO, zoom: { ox: 0.5, oy: 0.95, s: 1.55, at: T.flow } },
   // Get time back: the "I started…" chips
-  { shot: 'forgot', from: T.forgot, to: T.timeline, clip: 0.4, zoom: { ox: 0.5, oy: 0.63, s: 1.72 }, taps: taps(forgot) },
+  { shot: 'forgot', from: T.forgot, to: T.timeline, clip: 0.4, zoom: { ox: 0.5, oy: 0.8, s: 1.72 }, taps: taps(forgot) },
   // Honest history: the claimed gap
   { shot: 'timeline', from: T.timeline, to: T.stats, clip: 1.1, rate: 1.4, zoom: { ox: 0.5, oy: 0.24, s: 1.6 }, taps: taps(timeline) },
   // Stats: the big total and the tiles (left column whole, the right one's figures)
