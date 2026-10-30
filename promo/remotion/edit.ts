@@ -75,7 +75,7 @@ export const CAPTIONS: Caption[] = [
   { from: 0.42, to: 5.3, write: 0.8, lines: ["Hi! I'm Pomo."] },
   { from: 5.6, to: 8.2, lines: ['Keep going', 'past zero.'] },
   { from: 8.36, to: 10.95, lines: ['Forgot to start?', 'Get it back.'] },
-  { from: 11.11, to: 13.71, lines: ['No judgment.', 'Just your day.'] },
+  { from: 11.11, to: 13.71, lines: ['Add time you', 'forgot to track.'] },
   { from: T.stats + 0.08, to: T.montage - 0.08, lines: ['Watch your weeks', 'take shape.'] },
   { from: T.free, to: T.end - 0.15, write: 0.42, size: 116, lines: ['Every feature.', { text: 'Free forever.', mark: 'forever' }] },
   { from: T.end + 0.08, to: 34, x: END.x, y: END.caption, lines: ['Focus at', 'your own pace.'] },
