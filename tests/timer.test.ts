@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyEvent, crossingAt, dueEvents, foldTimers, snapshot, startTimer, toSession } from '@/engine/timer';
+import { applyEvent, crossingAt, dueEvents, foldTimers, labelForSubject, snapshot, startTimer, toSession } from '@/engine/timer';
 import { MINUTE } from '@/engine/time';
 import type { AnyEvent, StartPayload, TimerState } from '@/engine/types';
 
@@ -201,5 +201,21 @@ describe('scrubbing the ring', () => {
     expect(session.recoveredMs).toBe(0);
     expect(session.start).toBe(T0);
     expect(session.source).toBe('adjusted');
+  });
+});
+
+describe('labelForSubject', () => {
+  it('follows the subject when the label is just the old subject name', () => {
+    expect(labelForSubject('Math', 'Math', 'History')).toBe('History');
+  });
+  it('fills an empty label with the new subject', () => {
+    expect(labelForSubject(undefined, undefined, 'History')).toBe('History');
+    expect(labelForSubject('', 'Math', 'History')).toBe('History');
+  });
+  it('clears a subject-name label when the subject is removed', () => {
+    expect(labelForSubject('Math', 'Math', undefined)).toBeUndefined();
+  });
+  it('keeps a label the person wrote', () => {
+    expect(labelForSubject('Chapter 4 proofs', 'Math', 'History')).toBe('Chapter 4 proofs');
   });
 });

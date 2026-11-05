@@ -23,7 +23,7 @@ import { db } from '@/db/schema';
 import { append, getActiveTimers, logAppEvent, pruneJoggers } from '@/db/repo';
 import { DEFAULT_SETTINGS, getSettings, updateSettings, type AppSettings } from '@/db/settings';
 import { breakAfter, phaseLabel, roundAfterBreak, suggestBreakMs, isBreak } from '@/engine/cycle';
-import { dueEvents, nextAlarmAt, snapshot, type PendingEvent } from '@/engine/timer';
+import { dueEvents, labelForSubject, nextAlarmAt, snapshot, type PendingEvent } from '@/engine/timer';
 import { formatClock, formatDuration, formatTimeOfDay, MINUTE, today, uid } from '@/engine/time';
 import type { Board, ModeChoice, Mood, Phase, Preset, Session, TimerState } from '@/engine/types';
 import { evaluateSession } from '@/features/stickers';
@@ -455,7 +455,7 @@ class Engine {
     if (!t) return;
     const from = t.boardId ? this.boards.find((b) => b.id === t.boardId) : undefined;
     const to = boardId ? this.boards.find((b) => b.id === boardId) : undefined;
-    const label = !t.label || t.label === from?.name ? to?.name : t.label;
+    const label = labelForSubject(t.label, from?.name, to?.name);
     const task = taskId ? await db.tasks.get(taskId) : undefined;
     const carry = !!task && !task.boardId && !task.folderId;
     if (carry && boardId) await db.tasks.update(task.id, { boardId, today: true });

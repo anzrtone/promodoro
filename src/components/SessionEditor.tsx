@@ -7,7 +7,7 @@ import { addManualSession, deleteSession, editSession, restoreSession } from '@/
 import { useSettings } from '@/db/settings';
 import { SOURCE_LABEL } from '@/engine/stats';
 import { dayStart, formatDayLabel, formatDuration, formatTimeOfDay, HOUR, localDay, MINUTE, today } from '@/engine/time';
-import { retime } from '@/engine/timer';
+import { labelForSubject, retime } from '@/engine/timer';
 import type { Mood, Phase, Session } from '@/engine/types';
 import { phaseLabel } from '@/engine/cycle';
 import { evaluateSession, award } from '@/features/stickers';
@@ -50,6 +50,13 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
   const [day, setDay] = useState(today());
   const [from, setFrom] = useState('09:00');
   const [to, setTo] = useState('09:25');
+  // Archived subjects too: a session can still belong to one, and its name is what the label would match.
+  const boards = useLiveQuery(() => db.boards.toArray(), [], []);
+  const pickBoard = (next?: string) => {
+    const name = (id?: string) => boards.find((b) => b.id === id)?.name;
+    setLabel(labelForSubject(label, name(boardId), name(next)) ?? '');
+    setBoardId(next);
+  };
   const resetTimes = (x: Session) => {
     setRetiming(false);
     setDay(localDay(x.start, x.tz));
@@ -149,7 +156,7 @@ export function SessionDetail({ session, onClose }: { session: Session | null; o
       </dl>
       <div className="space-y-3">
         <input className="field" placeholder="Label" value={label} onChange={(e) => setLabel(e.target.value)} />
-        <BoardPicker value={boardId} onChange={setBoardId} />
+        <BoardPicker value={boardId} onChange={pickBoard} />
         <input className="field font-hand !text-[19px]" placeholder="margin note…" value={note} onChange={(e) => setNote(e.target.value)} />
         <Segmented<Mood | 'none'>
           size="sm"

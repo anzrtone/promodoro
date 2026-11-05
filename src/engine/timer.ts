@@ -251,6 +251,9 @@ export function dueEvents(s: TimerState, now: number): PendingEvent[] {
   return out;
 }
 
+/** The label after a subject change: it follows the subject unless someone wrote their own. */
+export const labelForSubject = (label: string | undefined, from: string | undefined, to: string | undefined) => (!label || label === from ? to : label);
+
 /** Project a finished timer into a Session record. */
 /**
  * Move a session to new start/end times. Pauses stay (clamped to the new span), the clock-measured

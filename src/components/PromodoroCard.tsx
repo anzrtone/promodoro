@@ -176,7 +176,7 @@ function RunningPanel({ t, snap, compact, ringing }: { t: TimerState; snap: Time
 
   return (
     <>
-      {/* The clock block is a dead zone for the card's tap-to-focus: people scrub the time here. */}
+      {/* The clock block is a dead zone for the card's tap-to-focus. Scrubbing the time lives on the Focus mode ring. */}
       <div className={cx('flex w-full max-w-[400px] cursor-auto flex-col items-center', compact ? 'gap-1' : 'gap-3')} data-no-focus>
         <div className={cx('relative text-center', snap.inOvertime && 'rounded-card bg-halo/50 px-4')}>
           <div

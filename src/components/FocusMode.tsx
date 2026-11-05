@@ -24,7 +24,7 @@ import { cx } from './ui';
 const IDLE_MS = 5000;
 const LOCK_KEY = 'promodoro.ringLocked';
 
-function useRingLock(idle: boolean): [boolean, () => void] {
+function useRingLock(): [boolean, () => void] {
   const [manual, setManual] = useState(() => {
     try {
       return localStorage.getItem(LOCK_KEY) === '1';
@@ -42,8 +42,7 @@ function useRingLock(idle: boolean): [boolean, () => void] {
       }
       return next;
     });
-  // Auto-lock whenever the UI goes idle; stays locked until the user explicitly unlocks.
-  return [manual || idle, toggle];
+  return [manual, toggle];
 }
 
 export function FocusMode() {
@@ -121,10 +120,10 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
   const paused = t.status === 'paused';
   const brk = isBreak(t.phase);
   const hasTarget = snap.targetMs > 0;
-  // idle must be computed before locked so auto-lock can read it.
-  const [idle, wake] = useIdle(!paused && !ringing);
-  const [locked, toggleLock] = useRingLock(idle);
+  const [locked, toggleLock] = useRingLock();
   const scrub = useRingScrub(t, snap, hasTarget && !locked);
+  // Going idle only hides things, so the ring still answers the first touch; a drag in hand never counts as idle.
+  const [idle, wake] = useIdle(!paused && !ringing && !scrub.held);
   const scrubbing = scrub.remaining !== null;
   const flow = snap.inOvertime && !scrubbing;
   const [line] = useState(() => {
@@ -146,9 +145,11 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
 
   // Ring: tomato while focusing, leaf on breaks, and a full leaf ring once you're in Flow.
   const color = brk || flow ? 'rgb(var(--pm-leaf))' : 'rgb(var(--pm-tomato))';
-  const value = scrubbing ? Math.max(0, 1 - remainingMs / snap.targetMs) : flow || !hasTarget ? 1 : Math.min(1, snap.progress);
+  // The ring tracks the pointer exactly; the clock shows where letting go will land.
+  const value = scrub.fine !== null ? Math.max(0, 1 - scrub.fine / snap.targetMs) : flow || !hasTarget ? 1 : Math.min(1, snap.progress);
   const R = 88;
   const C = 2 * Math.PI * R;
+  const sweep = scrub.held ? '0ms' : scrubbing ? '180ms ease-out' : '900ms linear';
   const fade = cx('transition-opacity duration-700', idle && 'pointer-events-none opacity-0');
 
   return (
@@ -157,6 +158,7 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
       onPointerMove={wake}
       onPointerDown={wake}
       onKeyDown={wake}
+      onWheel={wake}
       role="region"
       aria-label="Focus mode"
     >
@@ -173,7 +175,7 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
 
       <main className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-4">
         <div
-          className="group relative outline-none"
+          className="group relative select-none outline-none"
           style={{ width: 'min(82vw, 52vh, 440px)', containerType: 'inline-size' }}
           onWheel={scrub.onWheel}
           onKeyDown={scrub.onKeyDown}
@@ -216,18 +218,24 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
               strokeDasharray={`${Math.max(0.001, value) * C} ${C}`}
               transform="rotate(-90 100 100)"
               opacity={paused ? 0.45 : 1}
-              style={{ transition: scrubbing ? 'none' : 'stroke-dasharray 900ms linear, stroke 600ms' }}
+              style={{ transition: `stroke-dasharray ${sweep}, stroke 600ms` }}
             />
+            {/* the knob turns with the ring, and swells while it's held */}
             {scrub.enabled && (
-              <circle
-                cx={100 + R * Math.sin(value * Math.PI * 2)}
-                cy={100 - R * Math.cos(value * Math.PI * 2)}
-                r="6.5"
-                fill="rgb(var(--pm-creme))"
-                stroke={color}
-                strokeWidth="3"
-                className="pointer-events-none"
-              />
+              <g
+                className={cx('pointer-events-none', idle && 'opacity-0')}
+                style={{ transform: `rotate(${value * 360}deg)`, transformOrigin: '100px 100px', transition: `transform ${sweep}, opacity ${idle ? '700ms' : '150ms'}` }}
+              >
+                <circle
+                  cx="100"
+                  cy={100 - R}
+                  r="6.5"
+                  fill="rgb(var(--pm-creme))"
+                  stroke={color}
+                  strokeWidth="3"
+                  style={{ transform: scrub.held ? 'scale(1.4)' : 'none', transformBox: 'fill-box', transformOrigin: 'center', transition: 'transform 150ms ease-out' }}
+                />
+              </g>
             )}
             {/* wide invisible band to grab: drag it round like a dial */}
             {scrub.enabled && (
@@ -237,9 +245,9 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
                 r={R}
                 fill="none"
                 stroke="transparent"
-                strokeWidth="26"
+                strokeWidth="40"
                 pointerEvents="stroke"
-                className={scrubbing ? 'cursor-grabbing' : 'cursor-grab'}
+                className={scrub.held ? 'cursor-grabbing' : 'cursor-grab'}
                 style={{ touchAction: 'none' }}
                 onPointerDown={scrub.onPointerDown}
                 onPointerMove={scrub.onPointerMove}
@@ -314,36 +322,44 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
   );
 }
 
+/** How far round the ring (as a fraction) a press must travel to count as a drag: about 6 px on a full-size ring. */
+const DRAG_SLOP = 0.006;
+
 /**
  * Dragging, scrolling or arrow-keying the ring moves elapsed time (a signed `timer.adjust`), which
  * is how "remaining" changes. While a gesture is in flight the number shown is a local preview; the
- * log is written once, when the gesture settles.
+ * log is written once, when the gesture settles, snapped to the nearest step.
  */
 function useRingScrub(t: TimerState, snap: TimerSnapshot, enabled: boolean) {
   const svg = useRef<SVGSVGElement>(null);
-  const [remaining, setRemaining] = useState<number | null>(null);
+  const [fine, setFine] = useState<number | null>(null);
+  const [held, setHeld] = useState(false);
   const latest = useRef<number | null>(null);
-  const frac = useRef(0);
+  const turn = useRef(0);
+  const grabbed = useRef(0);
+  const angle = useRef(0);
   const dragging = useRef(false);
   const settle = useRef<ReturnType<typeof setTimeout>>();
   const target = snap.targetMs;
   // Whole minutes on a normal session, 5 s on a very short one; never all the way to zero (that would end it).
   const step = target >= 10 * MINUTE ? MINUTE : 5000;
-  const clamp = (ms: number) => Math.min(target, Math.max(step, Math.round(ms / step) * step));
+  const bound = (ms: number) => Math.min(target, Math.max(step, ms));
+  const clamp = (ms: number) => bound(Math.round(ms / step) * step);
 
   const preview = (ms: number) => {
     latest.current = ms;
-    setRemaining(ms);
+    setFine(ms);
   };
   const commit = () => {
     clearTimeout(settle.current);
-    const ms = latest.current;
+    if (latest.current === null) return;
+    const ms = clamp(latest.current);
     latest.current = null;
-    if (ms === null) return;
+    setFine(ms);
     const cur = engine.primary();
     const delta = cur && cur.id === t.id ? snapshot(cur, Date.now()).remainingMs - ms : 0;
-    if (Math.abs(delta) < 1000) return setRemaining(null);
-    void engine.adjust(t.id, delta).finally(() => setRemaining(null));
+    if (Math.abs(delta) < 1000) return setFine(null);
+    void engine.adjust(t.id, delta).finally(() => setFine(null));
   };
   const commitSoon = () => {
     clearTimeout(settle.current);
@@ -356,41 +372,47 @@ function useRingScrub(t: TimerState, snap: TimerSnapshot, enabled: boolean) {
     const a = Math.atan2(e.clientX - (r.left + r.width / 2), -(e.clientY - (r.top + r.height / 2)));
     return (a < 0 ? a + Math.PI * 2 : a) / (Math.PI * 2);
   };
-  const move = (f: number) => {
-    // Crossing 12 o'clock pins to the end instead of wrapping round to the other side.
-    if (Math.abs(f - frac.current) > 0.5) f = frac.current > 0.5 ? 1 : 0;
-    frac.current = f;
-    preview(clamp((1 - f) * target));
-  };
   const base = () => latest.current ?? snap.remainingMs;
 
   return {
     svg,
-    remaining,
+    fine,
+    remaining: fine === null ? null : clamp(fine),
+    held,
     enabled,
     onPointerDown(e: RPointerEvent<SVGCircleElement>) {
       if (!enabled || e.button > 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
+      clearTimeout(settle.current);
       dragging.current = true;
-      // Grabbing the knob itself must not jump: at 12 o'clock the angle reads 0 or 1 depending on rounding.
-      const cur = 1 - base() / target;
-      const f = fracOf(e);
-      const gap = Math.abs(f - cur);
-      frac.current = Math.min(gap, 1 - gap) < 0.04 ? cur : f;
-      move(frac.current);
+      setHeld(true);
+      // A press changes nothing: the knob moves by however far the pointer then travels, from wherever it was grabbed.
+      grabbed.current = turn.current = 1 - base() / target;
+      angle.current = fracOf(e);
     },
     onPointerMove(e: RPointerEvent<SVGCircleElement>) {
-      if (dragging.current) move(fracOf(e));
+      if (!dragging.current) return;
+      const f = fracOf(e);
+      // The short way round, so crossing 12 o'clock doesn't read as a whole lap.
+      let d = f - angle.current;
+      if (d > 0.5) d -= 1;
+      if (d < -0.5) d += 1;
+      angle.current = f;
+      // Past either end the knob pins, but the turn keeps counting so it stays under the pointer on the way back.
+      turn.current = Math.min(1.5, Math.max(-0.5, turn.current + d));
+      if (latest.current === null && Math.abs(turn.current - grabbed.current) < DRAG_SLOP) return;
+      preview(bound((1 - turn.current) * target));
     },
     onPointerUp() {
       if (!dragging.current) return;
       dragging.current = false;
+      setHeld(false);
       commit();
     },
     onWheel(e: RWheelEvent) {
       if (!enabled) return;
       // Scroll down gives time back, scroll up spends it; 100 px of wheel is a minute.
-      preview(Math.min(target, Math.max(step, base() + e.deltaY * (MINUTE / 100))));
+      preview(bound(base() + e.deltaY * (MINUTE / 100)));
       commitSoon();
     },
     onKeyDown(e: RKeyboardEvent) {

@@ -18,6 +18,17 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.6',
+    date: '2026-11-05',
+    note: 'Pomo sorted out a mix-up on the timeline and loosened up the Focus mode ring, so it turns the way a dial should.',
+    changes: [
+      { kind: 'better', text: 'The Focus mode ring is much nicer to drag: it glides with your finger or mouse, shows the time you’ll land on, and settles on the nearest minute when you let go.' },
+      { kind: 'better', text: 'The ring is easier to grab, and the knob swells while you hold it. It moves from where it is instead of jumping, so a stray tap won’t change your time.' },
+      { kind: 'fixed', text: 'Changing a session’s subject on the timeline now changes the name it shows too. A label you wrote yourself stays as it is.' },
+      { kind: 'fixed', text: 'The Focus mode ring now answers your first touch after the screen goes quiet, and holding still mid-drag no longer cancels it.' },
+    ],
+  },
+  {
     version: '0.1.5',
     date: '2026-10-29',
     note: 'Pomo learned to flip back through your days, months and years, lets you fix the times on anything you logged, and got a lot quicker on its feet.',
