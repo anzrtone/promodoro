@@ -175,7 +175,8 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
 
       <main className="relative flex w-full max-w-3xl flex-1 flex-col items-center justify-center gap-6 px-4">
         <div
-          className="group relative select-none outline-none"
+          // touch-none has to live on a real box: Chromium ignores touch-action on SVG shapes, and would take the drag for a page scroll.
+          className={cx('group relative select-none outline-none', scrub.enabled && 'touch-none')}
           style={{ width: 'min(82vw, 52vh, 440px)', containerType: 'inline-size' }}
           onWheel={scrub.onWheel}
           onKeyDown={scrub.onKeyDown}
@@ -237,19 +238,19 @@ function FocusView({ t, snap, ringing }: { t: TimerState; snap: TimerSnapshot; r
                 />
               </g>
             )}
-            {/* wide invisible band to grab: drag it round like a dial */}
+            {/* invisible grab area, the whole dial bar its very middle: press to set the time there, drag it round */}
             {scrub.enabled && (
               <circle
                 cx="100"
                 cy="100"
-                r={R}
+                r="65"
                 fill="none"
                 stroke="transparent"
-                strokeWidth="40"
+                strokeWidth="70"
                 pointerEvents="stroke"
                 className={scrub.held ? 'cursor-grabbing' : 'cursor-grab'}
-                style={{ touchAction: 'none' }}
-                onPointerDown={scrub.onPointerDown}
+                // A tap that only wakes the faded screen must not move the time.
+                onPointerDown={(e) => scrub.onPointerDown(e, !idle)}
                 onPointerMove={scrub.onPointerMove}
                 onPointerUp={scrub.onPointerUp}
                 onPointerCancel={scrub.onPointerUp}
@@ -380,15 +381,20 @@ function useRingScrub(t: TimerState, snap: TimerSnapshot, enabled: boolean) {
     remaining: fine === null ? null : clamp(fine),
     held,
     enabled,
-    onPointerDown(e: RPointerEvent<SVGCircleElement>) {
+    onPointerDown(e: RPointerEvent<SVGCircleElement>, jump: boolean) {
       if (!enabled || e.button > 0) return;
       e.currentTarget.setPointerCapture(e.pointerId);
       clearTimeout(settle.current);
       dragging.current = true;
       setHeld(true);
-      // A press changes nothing: the knob moves by however far the pointer then travels, from wherever it was grabbed.
-      grabbed.current = turn.current = 1 - base() / target;
-      angle.current = fracOf(e);
+      const cur = 1 - base() / target;
+      const f = fracOf(e);
+      angle.current = f;
+      // Grabbing the knob itself must not jump: at 12 o'clock the angle reads 0 or 1 depending on rounding.
+      const gap = Math.abs(f - cur);
+      const onKnob = Math.min(gap, 1 - gap) < 0.04;
+      grabbed.current = turn.current = jump && !onKnob ? f : cur;
+      if (jump && !onKnob) preview(bound((1 - f) * target));
     },
     onPointerMove(e: RPointerEvent<SVGCircleElement>) {
       if (!dragging.current) return;

@@ -18,6 +18,15 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.7',
+    date: '2026-11-05',
+    note: 'Pomo got the Focus mode ring turning properly on Android, and you can press anywhere on the dial again.',
+    changes: [
+      { kind: 'better', text: 'Press anywhere on the Focus mode dial to set the time right there, then keep dragging. A tap that only wakes a faded screen leaves your time alone.' },
+      { kind: 'fixed', text: 'Dragging the Focus mode ring on Android no longer scrolls the page or stops partway round.' },
+    ],
+  },
+  {
     version: '0.1.6',
     date: '2026-11-05',
     note: 'Pomo sorted out a mix-up on the timeline and loosened up the Focus mode ring, so it turns the way a dial should.',
