@@ -20,8 +20,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 /**
  * The running-timer notification: a real chronometer (it ticks on its own, with no JS
- * running) plus pause / resume / stop buttons. Buttons open {@link TimerActionActivity},
- * which hands the tap to this plugin, or launches the app first if it was closed.
+ * running) plus pause / resume / stop buttons. Buttons fire {@link TimerActionReceiver},
+ * which hands the tap to this plugin without collapsing the shade, or launches the app if it was closed.
  */
 @CapacitorPlugin(name = "TimerNotification")
 public class TimerNotificationPlugin extends Plugin {
@@ -82,9 +82,9 @@ public class TimerNotificationPlugin extends Plugin {
     }
 
     private static PendingIntent actionIntent(Context ctx, String action, int code) {
-        Intent i = new Intent(ctx, TimerActionActivity.class).putExtra(EXTRA_ACTION, action);
+        Intent i = new Intent(ctx, TimerActionReceiver.class).putExtra(EXTRA_ACTION, action);
         i.setAction("app.promodoro.android.TIMER_" + action);
-        return PendingIntent.getActivity(ctx, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
+        return PendingIntent.getBroadcast(ctx, code, i, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
     }
 
     /**

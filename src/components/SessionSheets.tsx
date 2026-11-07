@@ -1,6 +1,7 @@
 /** After-session wrap-up (summary, suggested break, margin note) and missed-alarm notices. */
 import { useEffect, useState } from 'react';
-import { Coffee, Play, X } from 'lucide-react';
+import { Coffee, Pencil, Play, X } from 'lucide-react';
+import { SessionDetail } from './SessionEditor';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '@/db/schema';
 import { addManualSession, append } from '@/db/repo';
@@ -26,6 +27,7 @@ export function WrapSheet() {
   const [breakMin, setBreakMin] = useState(5);
   const [note, setNote] = useState('');
   const [mood, setMood] = useState<Mood | undefined>();
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!wrap) return;
@@ -45,9 +47,25 @@ export function WrapSheet() {
       .first();
   }, [wrap?.session.taskId, wrap?.session.boardId, wrap?.session.id]);
 
+  // The stored copy, so edits made in the full editor show up here when it closes.
+  const stored = useLiveQuery(() => (wrap ? db.sessions.get(wrap.session.id) : undefined), [wrap?.session.id]);
+
   if (!wrap) return null;
-  const s = wrap.session;
+  const s = stored ?? wrap.session;
   const focus = s.phase === 'focus';
+
+  if (editing) {
+    return (
+      <SessionDetail
+        session={s}
+        onClose={() => {
+          setEditing(false);
+          setNote(s.note ?? '');
+          setMood(s.mood);
+        }}
+      />
+    );
+  }
 
   const saveNote = async () => {
     if ((note || '') !== (s.note || '') || mood !== s.mood) await engine.noteSession(s.id, note || undefined, mood);
@@ -68,7 +86,18 @@ export function WrapSheet() {
     <Sheet open onClose={() => void close()} title={focus ? (s.endReason === 'early' ? 'Done is done ✓' : 'Session complete!') : 'Break over'}>
       <div className="flex items-center gap-4">
         <Pomo mood={focus ? 'cheering' : 'happy'} size={92} accessory={settings.accessory} />
-        <div className="flex-1">
+        <div className="relative flex-1">
+          {s.source !== 'manual' && (
+            <button
+              type="button"
+              className="btn-ghost absolute -top-1 right-0 !p-1.5 !text-ink/45 hover:!text-ink/80"
+              onClick={() => setEditing(true)}
+              aria-label="Edit this session"
+              title="Edit this session"
+            >
+              <Pencil size={16} />
+            </button>
+          )}
           {wrap.late && <p className="mb-1 text-sm text-ink/60">This finished while you were away, at {formatTimeOfDay(s.end)}. Saved exactly as it happened.</p>}
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-0.5">
             {rows.map(([k, v]) => (

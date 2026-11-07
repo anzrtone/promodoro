@@ -18,6 +18,15 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.8',
+    date: '2026-11-07',
+    note: 'Pomo stopped slamming your notification bar shut, and lets you fix up a session right when it ends.',
+    changes: [
+      { kind: 'new', text: 'The “Session complete” card has a pencil: change the times, label, subject, margin note or mood on the spot, without hunting for it on the timeline.' },
+      { kind: 'fixed', text: 'Pausing, resuming or finishing from the Android timer notification no longer closes your notification bar. It stays open and shows the new state.' },
+    ],
+  },
+  {
     version: '0.1.7',
     date: '2026-11-05',
     note: 'Pomo got the Focus mode ring turning properly on Android, and you can press anywhere on the dial again.',
