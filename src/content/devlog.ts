@@ -18,6 +18,14 @@ export const KIND_LABEL: Record<ChangeKind, string> = { new: 'New', better: 'Bet
 
 export const DEVLOG: DevLogEntry[] = [
   {
+    version: '0.1.9',
+    date: '2026-11-12',
+    note: 'Typing your name on some Android keyboards no longer comes out as a pile of repeated letters.',
+    changes: [
+      { kind: 'fixed', text: 'On some Android phones, the name box in the welcome notebook repeated letters as you typed (“saara” became “ssasaasaarsaara”). It now types normally.' },
+    ],
+  },
+  {
     version: '0.1.8',
     date: '2026-11-07',
     note: 'Pomo stopped slamming your notification bar shut, and lets you fix up a session right when it ends.',

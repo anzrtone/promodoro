@@ -1,6 +1,6 @@
 [package]
 name = "promodoro"
-version = "0.1.8"
+version = "0.1.9"
 description = "Promodoro — focus at your own pace"
 authors = ["Promodoro"]
 edition = "2021"

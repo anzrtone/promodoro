@@ -217,11 +217,16 @@ function NamePage({ name, onName, onEnter, returning }: { name: string; onName: 
         <input
           autoFocus
           value={name}
-          maxLength={40}
-          onChange={(e) => onName(e.target.value)}
+          // No maxLength / autoComplete here: on some Android keyboards (a Nothing phone with a themed
+          // keyboard) they make the IME re-commit the whole composing word on every key, so "saara"
+          // typed as "ssasaasaarsaara". Saving already clamps to 40 chars.
+          onChange={(e) => onName(e.target.value.slice(0, 40))}
           onKeyDown={(e) => e.key === 'Enter' && onEnter()}
           placeholder="your name"
-          autoComplete="given-name"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="words"
+          spellCheck={false}
           className="w-full border-b-2 border-dashed border-ink/25 bg-transparent pb-1 text-center font-hand text-[34px] leading-tight outline-none placeholder:text-ink/25 focus:border-tomato"
         />
       </label>
